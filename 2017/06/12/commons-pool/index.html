@@ -1,0 +1,932 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="前言大家对连接池的概念应该都很熟悉了，apache commons-pool是apache基金会的一个开源对象池组件，我们常用的数据库连接池dpcp和redis的java客户端jedis都使用commons-pool来管理连接。现在我们通过阅读commons-pool的部分代码来看一看他们在编写连接池组件时采用了什么样的设计思路和技术。 准备工作首先我们思考一下，连接池除应该具备哪些功能？  连接">
+<meta name="keywords" content="源码,连接池,commons-pool">
+<meta property="og:type" content="article">
+<meta property="og:title" content="如何设计一个连接池：commons-pool2源码分析">
+<meta property="og:url" content="http://www.throwsnew.com/2017/06/12/commons-pool/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="前言大家对连接池的概念应该都很熟悉了，apache commons-pool是apache基金会的一个开源对象池组件，我们常用的数据库连接池dpcp和redis的java客户端jedis都使用commons-pool来管理连接。现在我们通过阅读commons-pool的部分代码来看一看他们在编写连接池组件时采用了什么样的设计思路和技术。 准备工作首先我们思考一下，连接池除应该具备哪些功能？  连接">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/images/commonspool.gif">
+<meta property="og:image" content="http://www.throwsnew.com/images/commonspoolflow.png">
+<meta property="og:updated_time" content="2019-05-04T15:20:00.701Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="如何设计一个连接池：commons-pool2源码分析">
+<meta name="twitter:description" content="前言大家对连接池的概念应该都很熟悉了，apache commons-pool是apache基金会的一个开源对象池组件，我们常用的数据库连接池dpcp和redis的java客户端jedis都使用commons-pool来管理连接。现在我们通过阅读commons-pool的部分代码来看一看他们在编写连接池组件时采用了什么样的设计思路和技术。 准备工作首先我们思考一下，连接池除应该具备哪些功能？  连接">
+<meta name="twitter:image" content="http://www.throwsnew.com/images/commonspool.gif">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2017/06/12/commons-pool/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>如何设计一个连接池：commons-pool2源码分析 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2017/06/12/commons-pool/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">如何设计一个连接池：commons-pool2源码分析
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2017-06-12 00:10:50" itemprop="dateCreated datePublished" datetime="2017-06-12T00:10:50+08:00">2017-06-12</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-05-04 23:20:00" itemprop="dateModified" datetime="2019-05-04T23:20:00+08:00">2019-05-04</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/开源框架/" itemprop="url" rel="index"><span itemprop="name">开源框架</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="前言"><a href="#前言" class="headerlink" title="前言"></a>前言</h2><p>大家对连接池的概念应该都很熟悉了，<a href="https://commons.apache.org/proper/commons-pool/" target="_blank" rel="noopener">apache commons-pool</a>是apache基金会的一个开源对象池组件，我们常用的数据库连接池dpcp和redis的java客户端jedis都使用commons-pool来管理连接。现在我们通过阅读commons-pool的部分代码来看一看他们在编写连接池组件时采用了什么样的设计思路和技术。</p>
+<h2 id="准备工作"><a href="#准备工作" class="headerlink" title="准备工作"></a>准备工作</h2><p>首先我们思考一下，连接池除应该具备哪些功能？</p>
+<ol>
+<li>连接池要能够管理不同类型的对象，同时作为一个服务组件不需要关心每种连接的创建细节。</li>
+<li>连接池中的连接当长时间空闲时可能会被服务端主动关闭，或者受网络影响断开，连接池要能够定时检查它的连接是否可用。</li>
+<li>支持并发操作,每个线程各种持有连接互不影响。</li>
+</ol>
+<p>带着这三个问题，下面我们一起看一下commons-pool的代码,<br>它主要提供这个几种类型的对象池：<br><a id="more"></a><br><img src="/images/commonspool.gif" alt=""><br>从左至右看，SoftReferenceObjectPool是不用指定容量的对象池，ProxiedObject是使用代理模式来创建对象池的对象，在这篇文章主要介绍GenericObjectPool的实现。</p>
+<h2 id="封装对象"><a href="#封装对象" class="headerlink" title="封装对象"></a>封装对象</h2><p>commons-pool定义了一个接口PooledObject来封装池中的对象，添加了空闲时间，使用时间等信息和对象状态流转的行为。<br>Pooledbject的状态有这几种：<br>|    状态     |    说明  |<br>| ——–   | —–  |<br>| IDLE     | 空闲 |<br>|ALLOCATED  |   使用中<br>|INVALID |不可用 即将/已经被销毁<br>|ABANDONED |被遗弃<br>|RETURNING |返回对象池<br>|EVICTION|  在队列中 正在被检查<br>|EVICTION_RETURN_TO_HEAD| 检查结束要放回队列头部<br>|VALIDATION| 在队列中 正在被检查<br>|VALIDATION_PREALLOCATED |验证结束要被分配<br>|VALIDATION_RETURN_TO_HEAD| 检查结束要放回队列头部</p>
+<p>表格中以RETURN_TO_HEAD结尾的状态是在当前的检查操作和对象借出操作同时进行时出现的，在检查结束后为了尽量保证借出成功这个对象要放回队头。<br>在我们不需要自定义对象行为的情况下可以直接使用PooledObject的默认实现DefaultPooledObject，主要代码如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">long</span> createTime = System.currentTimeMillis();</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">long</span> lastBorrowTime = createTime;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">long</span> lastUseTime = createTime;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">long</span> lastReturnTime = createTime;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">long</span> borrowedCount = <span class="number">0</span>;</span><br><span class="line"><span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">boolean</span> <span class="title">allocate</span><span class="params">()</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (state == PooledObjectState.IDLE) &#123;</span><br><span class="line">            state = PooledObjectState.ALLOCATED;</span><br><span class="line">            lastBorrowTime = System.currentTimeMillis();</span><br><span class="line">            lastUseTime = lastBorrowTime;</span><br><span class="line">            borrowedCount++;</span><br><span class="line">            <span class="keyword">if</span> (logAbandoned) &#123;</span><br><span class="line">                borrowedBy = <span class="keyword">new</span> AbandonedObjectCreatedException();</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (state == PooledObjectState.EVICTION) &#123;</span><br><span class="line">            state = PooledObjectState.EVICTION_RETURN_TO_HEAD;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>allocate() 定义了对象分配时的状态变化，当对象在空闲状态时才能被分配；如果对象正在做驱逐检查时,会把这个对象标记为EVICTION_RETURN_TO_HEAD.<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="meta">@Override</span></span><br><span class="line"><span class="comment">//返回值：对象是否当前未被使用</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">synchronized</span> <span class="keyword">boolean</span> <span class="title">endEvictionTest</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">            Deque&lt;PooledObject&lt;T&gt;&gt; idleQueue)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">if</span> (state == PooledObjectState.EVICTION) &#123;</span><br><span class="line">            state = PooledObjectState.IDLE;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125; <span class="keyword">else</span> <span class="keyword">if</span> (state == PooledObjectState.EVICTION_RETURN_TO_HEAD) &#123;</span><br><span class="line">            <span class="comment">//如果状态是EVICTION_RETURN_TO_HEAD表示当前这个对象试图被借出，返回false.</span></span><br><span class="line">            state = PooledObjectState.IDLE;</span><br><span class="line">            <span class="keyword">if</span> (!idleQueue.offerFirst(<span class="keyword">this</span>)) &#123;</span><br><span class="line">                <span class="comment">// TODO - Should never happen</span></span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>endEvictionTest()定义了驱逐检查之后对象状态的变化，可以看到EVICTION_RETURN_TO_HEAD状态的对象被放到空闲队列队头。</p>
+<p>allocate()和borrowedCount等使用synchronized，violatile都做了线程安全的处理。</p>
+<h2 id="定义对象工厂"><a href="#定义对象工厂" class="headerlink" title="定义对象工厂"></a>定义对象工厂</h2><p>commons-pool为了管理多种对象使用工厂模式来创建要管理的对象，使用工厂方法后使用者可以通过重写PooledObjectFactory定义对象的实现，销毁，验证的具体实现，而commons-pool不需要关心这些细节它只管理PooledObject对象即可。</p>
+<p>工厂接口：PooledObjectFactory<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">interface</span> <span class="title">PooledObjectFactory</span>&lt;<span class="title">T</span>&gt; </span>&#123;</span><br><span class="line">  <span class="function">PooledObject&lt;T&gt; <span class="title">makeObject</span><span class="params">()</span> <span class="keyword">throws</span> Exception</span>;</span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">destroyObject</span><span class="params">(PooledObject&lt;T&gt; p)</span> <span class="keyword">throws</span> Exception</span>;</span><br><span class="line">  <span class="function"><span class="keyword">boolean</span> <span class="title">validateObject</span><span class="params">(PooledObject&lt;T&gt; p)</span></span>;</span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">activateObject</span><span class="params">(PooledObject&lt;T&gt; p)</span> <span class="keyword">throws</span> Exception</span>;</span><br><span class="line">  <span class="function"><span class="keyword">void</span> <span class="title">passivateObject</span><span class="params">(PooledObject&lt;T&gt; p)</span> <span class="keyword">throws</span> Exception</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>工厂抽象类：BasePooledObjectFactory<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">BasePooledObjectFactory</span>&lt;<span class="title">T</span>&gt; <span class="keyword">implements</span> <span class="title">PooledObjectFactory</span>&lt;<span class="title">T</span>&gt; </span>&#123;</span><br><span class="line">...</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">abstract</span> T <span class="title">create</span><span class="params">()</span> <span class="keyword">throws</span> Exception</span>;</span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">abstract</span> PooledObject&lt;T&gt; <span class="title">wrap</span><span class="params">(T obj)</span></span>;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> PooledObject&lt;T&gt; <span class="title">makeObject</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> wrap(create());</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">validateObject</span><span class="params">(PooledObject&lt;T&gt; p)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>BasePooledObjectFactory添加了create,wrap两个抽象方法，create可以返回我们要放在连接池的对象，然后使用wrap封装为PooledObject即可，注意validateObject默认返回true;</p>
+<h2 id="对象池定义"><a href="#对象池定义" class="headerlink" title="对象池定义"></a>对象池定义</h2><p>对象池是我们保存对象的地方，对象的获取，归还和定时检查都通过对象池来实现。以GenericObjectPool为例，对象池使用了线程安全的集合类来保存对象，LinkedBlockingDeque用于保存空闲的对象，ConcurrentHashMap保存全部对象（包括各种状态）。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> LinkedBlockingDeque&lt;PooledObject&lt;T&gt;&gt; idleObjects = <span class="keyword">new</span> LinkedBlockingDeque&lt;PooledObject&lt;T&gt;&gt;();</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Map&lt;T, PooledObject&lt;T&gt;&gt; allObjects = <span class="keyword">new</span> ConcurrentHashMap&lt;T, PooledObject&lt;T&gt;&gt;();</span><br></pre></td></tr></table></figure></p>
+<p>borrowObject()从连接池获取对象：<br>连接池借出对象时，经过Abandoned和validate两种检查，在连接池满时根据配置执行对应的等待策略，当没有可用对象时会抛出异常。</p>
+<p>Abandoned检查目标是连接池所有被借出的对象，主要防止对象借出之后长时间被占用，不能退还（或者使用者忘记return）到连接池导致连接被耗尽。超时时间由AbandonedConfig定义。</p>
+<p>validate检查目标是当前即将被借出的对象，目的是保证提供的对象是可用的，检查方式由对象工厂的validateObject方法定义。对象工厂还有activateObject方法来验证对象，不过这个方法是强制执行的。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br><span class="line">100</span><br><span class="line">101</span><br><span class="line">102</span><br><span class="line">103</span><br><span class="line">104</span><br><span class="line">105</span><br><span class="line">106</span><br><span class="line">107</span><br><span class="line">108</span><br><span class="line">109</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> T <span class="title">borrowObject</span><span class="params">(<span class="keyword">long</span> borrowMaxWaitMillis)</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line"><span class="comment">// getNumIdle() 表示当前空空闲对象数量，getNumActive() 表示当前非空闲的对象数量，getMaxTotal()表示连接池容量</span></span><br><span class="line"><span class="comment">// 那么假设最大容量10个，非空闲8个 &gt; 7 ，空闲对象只要少于2个，就需要开始Abandoned检查</span></span><br><span class="line"></span><br><span class="line">        AbandonedConfig ac = <span class="keyword">this</span>.abandonedConfig;</span><br><span class="line">        <span class="keyword">if</span> (ac != <span class="keyword">null</span> &amp;&amp; ac.getRemoveAbandonedOnBorrow() &amp;&amp;</span><br><span class="line">                (getNumIdle() &lt; <span class="number">2</span>) &amp;&amp;</span><br><span class="line">                (getNumActive() &gt; getMaxTotal() - <span class="number">3</span>) ) &#123;</span><br><span class="line">            removeAbandoned(ac);</span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        PooledObject&lt;T&gt; p = <span class="keyword">null</span>;</span><br><span class="line">        </span><br><span class="line">        <span class="comment">//拷贝了变量 blockWhenExhausted</span></span><br><span class="line">        <span class="comment">//因为blockWhenExhausted的修改方法是public的，这样保证在并发情况下，方法执行周期内变量也不会变化</span></span><br><span class="line">        <span class="keyword">boolean</span> blockWhenExhausted = getBlockWhenExhausted();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">boolean</span> create;</span><br><span class="line">        <span class="keyword">long</span> waitTime = <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">while</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">            create = <span class="keyword">false</span>;</span><br><span class="line">            <span class="comment">// 设置了对象池耗尽时等待</span></span><br><span class="line">            <span class="keyword">if</span> (blockWhenExhausted) &#123;</span><br><span class="line">                <span class="comment">//从空闲队列取对象</span></span><br><span class="line">                p = idleObjects.pollFirst();</span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="comment">//没有空闲对象 新建一个</span></span><br><span class="line">                    create = <span class="keyword">true</span>;</span><br><span class="line">                    p = create();</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="keyword">if</span> (borrowMaxWaitMillis &lt; <span class="number">0</span>) &#123;</span><br><span class="line">                        <span class="comment">//注意：没配置等待时间，会一直阻塞</span></span><br><span class="line">                        p = idleObjects.takeFirst();</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        <span class="comment">//按照配置的时间等待</span></span><br><span class="line">.....</span><br><span class="line">                        p = idleObjects.pollFirst(borrowMaxWaitMillis,</span><br><span class="line">                                TimeUnit.MILLISECONDS);</span><br><span class="line">.....</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">                 <span class="comment">//等待之后还是没有空闲对象</span></span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> NoSuchElementException(</span><br><span class="line">                            <span class="string">"Timeout waiting for idle object"</span>);</span><br><span class="line">                &#125;</span><br><span class="line">                 <span class="comment">//等待之后获得对象 尝试分配对象</span></span><br><span class="line">                 <span class="comment">//这个方法由pooledobject实现</span></span><br><span class="line">                <span class="keyword">if</span> (!p.allocate()) &#123;</span><br><span class="line">                    p = <span class="keyword">null</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                <span class="comment">//没有配置blockWhenExhausted 不等待</span></span><br><span class="line">                p = idleObjects.pollFirst();</span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    create = <span class="keyword">true</span>;</span><br><span class="line">                    p = create();</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> (p == <span class="keyword">null</span>) &#123;</span><br><span class="line">                    <span class="keyword">throw</span> <span class="keyword">new</span> NoSuchElementException(<span class="string">"Pool exhausted"</span>);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="keyword">if</span> (!p.allocate()) &#123;</span><br><span class="line">                    p = <span class="keyword">null</span>;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="comment">//对象分配成功</span></span><br><span class="line">            <span class="keyword">if</span> (p != <span class="keyword">null</span>) &#123;</span><br><span class="line"></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                   <span class="comment">//激活对象</span></span><br><span class="line">                    factory.activateObject(p);</span><br><span class="line">                &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        destroy(p);</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Exception e1) &#123;</span><br><span class="line">                    &#125;</span><br><span class="line">                    p = <span class="keyword">null</span>;</span><br><span class="line">                    .....</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">//如果配置了对象检查</span></span><br><span class="line">                <span class="keyword">if</span> (p != <span class="keyword">null</span> &amp;&amp; (getTestOnBorrow() || create &amp;&amp; getTestOnCreate())) &#123;</span><br><span class="line">                    <span class="keyword">boolean</span> validate = <span class="keyword">false</span>;</span><br><span class="line">                    Throwable validationThrowable = <span class="keyword">null</span>;</span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        validate = factory.validateObject(p);</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (Throwable t) &#123;</span><br><span class="line">                        PoolUtils.checkRethrow(t);</span><br><span class="line">                        validationThrowable = t;</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="keyword">if</span> (!validate) &#123;</span><br><span class="line">                    <span class="comment">//验证失败 销毁对象</span></span><br><span class="line">                        <span class="keyword">try</span> &#123;</span><br><span class="line">                            destroy(p);</span><br><span class="line">                         destroyedByBorrowValidationCount.incrementAndGet();</span><br><span class="line">                        &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                        &#125;</span><br><span class="line">                        p = <span class="keyword">null</span>;</span><br><span class="line">                        .....</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//更新借出时间等信息</span></span><br><span class="line">        updateStatsBorrow(p, waitTime);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">return</span> p.getObject();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<p>evict()驱逐对象：</p>
+<p>evict驱逐检查：上面介绍了两种对象的检查方式，evictor不同之处在于它由后台线程独立来完成，检查对象主要是连接池中的空闲连接，超时时间等可通过EvictionConfig配置。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">evict</span><span class="params">()</span> <span class="keyword">throws</span> Exception </span>&#123;</span><br><span class="line">        <span class="comment">//确保连接池打开</span></span><br><span class="line">        assertOpen();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (idleObjects.size() &gt; <span class="number">0</span>) &#123;</span><br><span class="line"></span><br><span class="line">            PooledObject&lt;T&gt; underTest = <span class="keyword">null</span>;</span><br><span class="line">            </span><br><span class="line">            EvictionPolicy&lt;T&gt; evictionPolicy = getEvictionPolicy();</span><br><span class="line"></span><br><span class="line">            <span class="keyword">synchronized</span> (evictionLock) &#123;</span><br><span class="line">                ...</span><br><span class="line">                <span class="comment">// 复制变量保证函数内值不改变，同上</span></span><br><span class="line">                <span class="keyword">boolean</span> testWhileIdle = getTestWhileIdle();</span><br><span class="line">                <span class="comment">//每次驱逐对象数可配置</span></span><br><span class="line">                <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>, m = getNumTests(); i &lt; m; i++) &#123;</span><br><span class="line">                    <span class="keyword">if</span> (evictionIterator == <span class="keyword">null</span> || !evictionIterator.hasNext()) &#123;</span><br><span class="line">                        <span class="comment">//驱逐检查的顺序和空闲队列出入顺序保持一致 </span></span><br><span class="line">                        <span class="keyword">if</span> (getLifo()) &#123;</span><br><span class="line">                            <span class="comment">//后进先出(逆序遍历)</span></span><br><span class="line">                            evictionIterator = idleObjects.descendingIterator();</span><br><span class="line">                        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                            <span class="comment">//先进先出</span></span><br><span class="line">                            evictionIterator = idleObjects.iterator();</span><br><span class="line">                        &#125;</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="keyword">if</span> (!evictionIterator.hasNext()) &#123;</span><br><span class="line">                        <span class="comment">// Pool exhausted, nothing to do here</span></span><br><span class="line">                        <span class="keyword">return</span>;</span><br><span class="line">                    &#125;</span><br><span class="line"></span><br><span class="line">                    <span class="keyword">try</span> &#123;</span><br><span class="line">                        underTest = evictionIterator.next();</span><br><span class="line">                    &#125; <span class="keyword">catch</span> (NoSuchElementException nsee) &#123;</span><br><span class="line">                        <span class="comment">//因为idleObjects.iterator()方法并没有做同步控制，可能被检查的空闲对象再检查期间已经被借出不在队列中了，在并发条件下要考虑这种情况。。</span></span><br><span class="line">                        <span class="comment">// Object was borrowed in another thread</span></span><br><span class="line">                        <span class="comment">// Don't count this as an eviction test so reduce i;</span></span><br><span class="line">                        i--;</span><br><span class="line">                        evictionIterator = <span class="keyword">null</span>;</span><br><span class="line">                        <span class="keyword">continue</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="comment">//再次检查，对象在队列中但是要保证状态是空闲。。。</span></span><br><span class="line">                    <span class="keyword">if</span> (!underTest.startEvictionTest()) &#123;</span><br><span class="line">                        <span class="comment">// Object was borrowed in another thread</span></span><br><span class="line">                        <span class="comment">// Don't count this as an eviction test so reduce i;</span></span><br><span class="line">                        i--;</span><br><span class="line">                        <span class="keyword">continue</span>;</span><br><span class="line">                    &#125;</span><br><span class="line">                    <span class="comment">//EvictionPolicy定义了驱逐对象的策略，默认实现是DefaultEvictionPolicy</span></span><br><span class="line">                    <span class="comment">//调用ObjectPool的setEvictionPolicyClassName方法指定自定义策略</span></span><br><span class="line">                    <span class="keyword">if</span> (evictionPolicy.evict(evictionConfig, underTest,</span><br><span class="line">                            idleObjects.size())) &#123;</span><br><span class="line">                        destroy(underTest);</span><br><span class="line">                        destroyedByEvictorCount.incrementAndGet();</span><br><span class="line">                    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">                        <span class="keyword">if</span> (testWhileIdle) &#123;</span><br><span class="line">                            ...</span><br><span class="line">                            <span class="comment">//执行activateObject&amp;validateObject的检查</span></span><br><span class="line">                            ...</span><br><span class="line">                        &#125;</span><br><span class="line">                        ...</span><br><span class="line">                    &#125;</span><br><span class="line">                &#125;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="comment">//无处不在的Abandoned检查，可以配置连接池是否在evictor线程中执行removeAbandoned</span></span><br><span class="line">        AbandonedConfig ac = <span class="keyword">this</span>.abandonedConfig;</span><br><span class="line">        <span class="keyword">if</span> (ac != <span class="keyword">null</span> &amp;&amp; ac.getRemoveAbandonedOnMaintenance()) &#123;</span><br><span class="line">            removeAbandoned(ac);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>驱逐线程的调用：<br>了解驱逐对象时要做的操作之后，我们来看一下后台的驱逐者线程是怎么定义&amp;启动的<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//GenericObjectPool.java</span></span><br><span class="line"><span class="comment">//构造方法中启动驱逐者线程</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">GenericObjectPool</span><span class="params">(PooledObjectFactory&lt;T&gt; factory,</span></span></span><br><span class="line"><span class="function"><span class="params">            GenericObjectPoolConfig config)</span> </span>&#123;</span><br><span class="line">        ...</span><br><span class="line">        startEvictor(getTimeBetweenEvictionRunsMillis());</span><br><span class="line">        ...</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>驱逐线程的定义：<br>驱逐者Evictor,在BaseGenericObjectPool中定义，本质是由java.util.TimerTask定义的定时任务<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//父类BaseGenericObjectPool.java</span></span><br><span class="line"><span class="function"><span class="keyword">final</span> <span class="keyword">void</span> <span class="title">startEvictor</span><span class="params">(<span class="keyword">long</span> delay)</span> </span>&#123;</span><br><span class="line">        <span class="comment">//BaseGenericObjectPool的私有成员，final Object evictionLock = new Object();做对象锁</span></span><br><span class="line">        <span class="keyword">synchronized</span> (evictionLock) &#123;</span><br><span class="line">            <span class="keyword">if</span> (<span class="keyword">null</span> != evictor) &#123;</span><br><span class="line">                <span class="comment">//已存在evictor，取消驱逐者线程，所以也可以二次调用startEvictor来停止驱逐检查</span></span><br><span class="line">                EvictionTimer.cancel(evictor);</span><br><span class="line">                evictor = <span class="keyword">null</span>;</span><br><span class="line">                evictionIterator = <span class="keyword">null</span>;</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">if</span> (delay &gt; <span class="number">0</span>) &#123;</span><br><span class="line">                evictor = <span class="keyword">new</span> Evictor();</span><br><span class="line">                EvictionTimer.schedule(evictor, delay, delay);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>Evitor定义：这里有一个比较有意思的问题，驱逐者线程Evictor被多个连接池共享,但是这些连接池可能属于不同的classloader,Evictor必须要保证它的所有行为在<strong>当前这个连接池的classloader</strong>下执行（这是开发者给commons-pool提交的bug,<a href="https://issues.apache.org/jira/browse/POOL-161" target="_blank" rel="noopener">详细描述请看这里</a>）<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//内部类Evictor</span></span><br><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Evictor</span> <span class="keyword">extends</span> <span class="title">TimerTask</span> </span>&#123;</span><br><span class="line">    </span><br><span class="line">        <span class="meta">@Override</span></span><br><span class="line">        <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">            ClassLoader savedClassLoader =</span><br><span class="line">                    Thread.currentThread().getContextClassLoader();</span><br><span class="line">            <span class="keyword">try</span> &#123;</span><br><span class="line">                <span class="comment">// 切换到当前连接池的classLoader</span></span><br><span class="line">                Thread.currentThread().setContextClassLoader(</span><br><span class="line">                        factoryClassLoader);</span><br><span class="line"></span><br><span class="line">                <span class="comment">// 执行上面的evict()方法</span></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    evict();</span><br><span class="line">                &#125; <span class="keyword">catch</span>(Exception e) &#123;</span><br><span class="line">                    swallowException(e);</span><br><span class="line">                &#125; <span class="keyword">catch</span>(OutOfMemoryError oome) &#123;</span><br><span class="line">                    <span class="comment">// Log problem but give evictor thread a chance to continue</span></span><br><span class="line">                    <span class="comment">// in case error is recoverable</span></span><br><span class="line">                    oome.printStackTrace(System.err);</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// 驱逐之后还要保证空闲连接数量不能小于配置</span></span><br><span class="line">                <span class="keyword">try</span> &#123;</span><br><span class="line">                    ensureMinIdle();</span><br><span class="line">                &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">                    swallowException(e);</span><br><span class="line">                &#125;</span><br><span class="line">            &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">                <span class="comment">// 切换回之前的classLoader</span></span><br><span class="line">                Thread.currentThread().setContextClassLoader(savedClassLoader);</span><br><span class="line">            &#125;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>驱逐策略：<br>在evict()方法中最后对象是否要被驱逐是调用了evictionPolicy.evict()的方法来判断的，commons-pool提供的驱逐策略如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//DefaultEvictionPolicy.java</span></span><br><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DefaultEvictionPolicy</span>&lt;<span class="title">T</span>&gt; <span class="keyword">implements</span> <span class="title">EvictionPolicy</span>&lt;<span class="title">T</span>&gt; </span>&#123;</span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">evict</span><span class="params">(EvictionConfig config, PooledObject&lt;T&gt; underTest,</span></span></span><br><span class="line"><span class="function"><span class="params">            <span class="keyword">int</span> idleCount)</span> </span>&#123;</span><br><span class="line">        <span class="comment">//getIdleTimeMillis()空闲时间</span></span><br><span class="line">        <span class="comment">//config.getIdleSoftEvictTime()空闲连接大于配置的最小值时的超时时间</span></span><br><span class="line">        <span class="comment">//config.getIdleEvictTime()空闲连接超时时间与数量无关</span></span><br><span class="line">        <span class="keyword">if</span> ((config.getIdleSoftEvictTime() &lt; underTest.getIdleTimeMillis() &amp;&amp;</span><br><span class="line">                config.getMinIdle() &lt; idleCount) ||</span><br><span class="line">                config.getIdleEvictTime() &lt; underTest.getIdleTimeMillis()) &#123;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>驱逐策略是支持自定义的，这里使用的是设计模式中的策略模式，我们只要实现EvictionPolicy接口，然后调用setEvictionPolicyClassName()方法既可以更换驱逐策略（实现类要尽可能简单，只描述一种算法即可）：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//父类BaseGenericObjectPool.java</span></span><br><span class="line"> <span class="function"><span class="keyword">public</span> <span class="keyword">final</span> <span class="keyword">void</span> <span class="title">setEvictionPolicyClassName</span><span class="params">(</span></span></span><br><span class="line"><span class="function"><span class="params">            String evictionPolicyClassName)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            <span class="comment">//使用接口+反射实现的策略模式</span></span><br><span class="line">            Class&lt;?&gt; clazz = Class.forName(evictionPolicyClassName);</span><br><span class="line">            Object policy = clazz.newInstance();</span><br><span class="line">            <span class="keyword">if</span> (policy <span class="keyword">instanceof</span> EvictionPolicy&lt;?&gt;) &#123;</span><br><span class="line">                <span class="meta">@SuppressWarnings</span>(<span class="string">"unchecked"</span>) </span><br><span class="line">                EvictionPolicy&lt;T&gt; evicPolicy = (EvictionPolicy&lt;T&gt;) policy;</span><br><span class="line">                <span class="keyword">this</span>.evictionPolicy = evicPolicy;</span><br><span class="line">            &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (ClassNotFoundException e) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125; <span class="keyword">catch</span> (InstantiationException e) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125; <span class="keyword">catch</span> (IllegalAccessException e) &#123;</span><br><span class="line">            ...</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>通过阅读GenericObjectPool的部分代码，可以看出来并没有在每个获取&amp;退还对象的方法都做同步控制，线程安全主要是由LinkedBlockingDeque，ConcurrentHashMap这两个并发集合保证的，因此开发者在编写非线程安全方法时也使用了局部变量复制可能被修改的值，多次检查对象状态之类的方法保证并发条件下程序正常的执行（没全部加锁能够提升性能，不过也会有这样的麻烦）。<br>总结一下连接池中对象的声明周期大概如下图：<br><img src="/images/commonspoolflow.png" alt=""><br>蓝色线是evictor执行时对象状态的变化，红线是abandon执行的过程，绿色线是正常使用中对象的变化。</p>
+<h2 id="其他功能"><a href="#其他功能" class="headerlink" title="其他功能"></a>其他功能</h2><p>附上一份objectpool的配置选项<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br></pre></td><td class="code"><pre><span class="line">GenericObjectPoolConfig poolConfig = <span class="keyword">new</span> GenericObjectPoolConfig();</span><br><span class="line"></span><br><span class="line">基本配置：</span><br><span class="line"></span><br><span class="line">        <span class="comment">//最大连接</span></span><br><span class="line">        poolConfig.setMaxTotal(<span class="number">100</span>);</span><br><span class="line">        <span class="comment">//最大空闲连接</span></span><br><span class="line">        poolConfig.setMaxIdle(<span class="number">5</span>);</span><br><span class="line">        <span class="comment">//最小空闲连接 </span></span><br><span class="line">        poolConfig.setMinIdle(<span class="number">5</span>);</span><br><span class="line">        <span class="comment">//连接满时最多等待时间</span></span><br><span class="line">        poolConfig.setMaxWaitMillis(<span class="number">5000L</span>);</span><br><span class="line"></span><br><span class="line">高级功能：</span><br><span class="line">         <span class="comment">//使用时检查对象（默认不检查）</span></span><br><span class="line">        poolConfig.setTestWhileIdle(<span class="keyword">true</span>);</span><br><span class="line">        poolConfig.setTestOnCreate(<span class="keyword">true</span>);</span><br><span class="line">        poolConfig.setTestOnBorrow(<span class="keyword">true</span>);</span><br><span class="line">        poolConfig.setTestOnReturn(<span class="keyword">true</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//jmx启用 之后可以实时的查看线程池对象的状态</span></span><br><span class="line">        poolConfig.setJmxEnabled(<span class="keyword">false</span>);</span><br><span class="line">        poolConfig.setJmxNameBase(<span class="string">"namebase"</span>);</span><br><span class="line">        poolConfig.setJmxNamePrefix(<span class="string">"nameprefix"</span>);</span><br><span class="line"></span><br><span class="line">         <span class="comment">//驱逐线程每次检查对象个数</span></span><br><span class="line">        poolConfig.setNumTestsPerEvictionRun(<span class="number">2</span>);</span><br><span class="line">        <span class="comment">//空闲连接被驱逐前能够保留的时间</span></span><br><span class="line">        poolConfig.setMinEvictableIdleTimeMillis(<span class="number">10000L</span>);</span><br><span class="line">        <span class="comment">//当空闲线程大于minIdle 空闲连接能够保留时间，同时指定会被上面的覆盖</span></span><br><span class="line">        poolConfig.setSoftMinEvictableIdleTimeMillis(<span class="number">10000L</span>);</span><br><span class="line">        <span class="comment">//驱逐线程执行间隔时间</span></span><br><span class="line">        poolConfig.setTimeBetweenEvictionRunsMillis(<span class="number">200000L</span>);</span><br><span class="line"></span><br><span class="line">        <span class="comment">//放弃长时间占用连接的对象</span></span><br><span class="line">       AbandonedConfig abandonedConfig=<span class="keyword">new</span> AbandonedConfig();</span><br><span class="line">       abandonedConfig.setLogAbandoned(<span class="keyword">true</span>);</span><br><span class="line">       abandonedConfig.setUseUsageTracking(<span class="keyword">false</span>);</span><br><span class="line">       abandonedConfig.setRemoveAbandonedOnBorrow(<span class="keyword">true</span>);</span><br><span class="line">       abandonedConfig.setRemoveAbandonedOnMaintenance(<span class="keyword">true</span>);</span><br><span class="line">       abandonedConfig.setRemoveAbandonedTimeout(<span class="number">20</span>);<span class="comment">//second</span></span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/源码/" rel="tag"># 源码</a>
+          
+            <a href="/tags/连接池/" rel="tag"># 连接池</a>
+          
+            <a href="/tags/commons-pool/" rel="tag"># commons-pool</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2016/09/28/ioc-one/" rel="next" title="动手编写一个IOC容器">
+                <i class="fa fa-chevron-left"></i> 动手编写一个IOC容器
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/07/26/zookeeper,kafka集群安装/" rel="prev" title="zookeeper,kafka集群安装">
+                zookeeper,kafka集群安装 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#前言"><span class="nav-number">1.</span> <span class="nav-text">前言</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#准备工作"><span class="nav-number">2.</span> <span class="nav-text">准备工作</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#封装对象"><span class="nav-number">3.</span> <span class="nav-text">封装对象</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#定义对象工厂"><span class="nav-number">4.</span> <span class="nav-text">定义对象工厂</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#对象池定义"><span class="nav-number">5.</span> <span class="nav-text">对象池定义</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#其他功能"><span class="nav-number">6.</span> <span class="nav-text">其他功能</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

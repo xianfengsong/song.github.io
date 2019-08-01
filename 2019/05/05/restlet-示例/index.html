@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="背景介绍restlet是一个REST设计规范下的框架，让我们简单快速的开发RESTful应用。同类型的框架还有Jersey等，restlet在同类框架中是诞生比较早的一个（2005年），本文使用的是2.3.10版本是2017年发布的。">
+<meta name="keywords" content="博客,java,后台开发,数据库,多线程,开源代码,IT网站,Developer">
+<meta property="og:type" content="article">
+<meta property="og:title" content="restlet 示例">
+<meta property="og:url" content="http://www.throwsnew.com/2019/05/05/restlet-示例/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="背景介绍restlet是一个REST设计规范下的框架，让我们简单快速的开发RESTful应用。同类型的框架还有Jersey等，restlet在同类框架中是诞生比较早的一个（2005年），本文使用的是2.3.10版本是2017年发布的。">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial01.png">
+<meta property="og:image" content="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial04.png">
+<meta property="og:image" content="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial05.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/05/05/restlet-示例/restlet.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/05/05/restlet-示例/service.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/05/05/restlet-示例/message.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/05/05/restlet-示例/resource.png">
+<meta property="og:updated_time" content="2019-08-01T15:55:51.522Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="restlet 示例">
+<meta name="twitter:description" content="背景介绍restlet是一个REST设计规范下的框架，让我们简单快速的开发RESTful应用。同类型的框架还有Jersey等，restlet在同类框架中是诞生比较早的一个（2005年），本文使用的是2.3.10版本是2017年发布的。">
+<meta name="twitter:image" content="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial01.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2019/05/05/restlet-示例/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>restlet 示例 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2019/05/05/restlet-示例/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">restlet 示例
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-05-05 00:34:58" itemprop="dateCreated datePublished" datetime="2019-05-05T00:34:58+08:00">2019-05-05</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-08-01 23:55:51" itemprop="dateModified" datetime="2019-08-01T23:55:51+08:00">2019-08-01</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="背景介绍"><a href="#背景介绍" class="headerlink" title="背景介绍"></a>背景介绍</h3><h4 id="restlet"><a href="#restlet" class="headerlink" title="restlet"></a><a href="https://restlet.com/open-source/" target="_blank" rel="noopener">restlet</a></h4><p>是一个REST设计规范下的框架，让我们简单快速的开发RESTful应用。同类型的框架还有<a href="https://jersey.github.io/" target="_blank" rel="noopener">Jersey</a>等，restlet在同类框架中是诞生比较早的一个（2005年），本文使用的是2.3.10版本是2017年发布的。<br><a id="more"></a></p>
+<h4 id="REST"><a href="#REST" class="headerlink" title="REST"></a><a href="https://zh.wikipedia.org/wiki/%E8%A1%A8%E7%8E%B0%E5%B1%82%E7%8A%B6%E6%80%81%E8%BD%AC%E6%8D%A2" target="_blank" rel="noopener">REST</a></h4><p>全称 Representational State Transfer（表现层状态转换 ），由Roy Thomas Fielding博士于2000年在他的博士论文中提出，是一种软件架构风格，它基于HTTP定义了一组约束和属性来表述一个WebService。同类的WebService规范还有SOAP等。<br>主要特征：<br>1.以资源为基础，每个资源都由URI定义<br>2.对资源的操作包括获取、创建、修改和删除资源，这些操作正好对应HTTP协议提供的GET、POST、PUT和DELETE方法。<br>3.Client-Server客户服务器分离模式，任何一个客户端与服务器都是可替换的<br>4.Stateless 服务端不会为客户端的请求保存context,好处是“通讯本身的无状态性可以让不同的服务器的处理一系列请求中的不同请求，提高服务器的扩展性”<br>5.Cacheability Responses被设计为可缓存的，并负责缓存的一致性</p>
+<h3 id="整体视图"><a href="#整体视图" class="headerlink" title="整体视图"></a>整体视图</h3><ol>
+<li>restlet框架结构<br>框架分为api和engine两部分，都被设计为可拓展的，API暴露给应用程序实现交互。<br><img src="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial01.png" alt="framework"></li>
+<li>一个基于restlet的服务架构图<br>每个大方块代表一个组件Component(代表一类服务、应用的集合)，每个Component既可以是客户端也可以是服务端；<br>每个小方块是一个connector,方块之间的连线表示一个client-server的连接；restlet不仅支持http协议，也支持SMTP,FTP等类似协议。<br><img src="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial04.png" alt="app"><br>3.一个简化的restfule服务结构图<br>除了上面那种比较标准的架构，restlet还支持使用一个component代理多个应用（用单一jvm运行）,使用virtual host组件同时表示多个主机，并且同时启动多个connector<br><img src="https://restlet.com/static/tech-doc/restlet-framework/tutorial/2.3/images/tutorial05.png" alt="component"></li>
+</ol>
+<h3 id="核心概念和类图"><a href="#核心概念和类图" class="headerlink" title="核心概念和类图"></a>核心概念和类图</h3><h4 id="概念解释对比mvc"><a href="#概念解释对比mvc" class="headerlink" title="概念解释对比mvc"></a>概念解释对比mvc</h4><p><strong>controller ==</strong> Restlet(包含Filters, Routers, Finders等)<br><strong>model ==</strong> Resource 和 Domain Objects（DO可以在resource初始化时加载）<br><strong>view ==</strong> Representation可以是json文档，或velocity模板等等</p>
+<p><strong>Uniform</strong><br>一个通用接口，只有一个方法<code>void handle(Request request, Response response);</code></p>
+<blockquote>
+<p>以下几个类实例化后都会被并发访问，因此属性大多是final、violate修饰的</p>
+</blockquote>
+<p><strong>Restlet</strong><br>抽象类，除了实现Uniform.handle()方法，还添加了对自身生命周期的管理和对context的维护。restlet实例不是线程安全的。<br><img src="/2019/05/05/restlet-示例/restlet.png" title="image">如图，万物都是restlet<br><strong>Connector</strong><br>连接器，提供component之间的通信接口，对上层隐藏了资源和通信机制的具体实现。restlet框架提供了jetty,nio,servlet,jdbc,javaMail,solr等多种connector。<br><strong>Client&amp;Server</strong><br>分别对应服务端和客户端的connector，他们内部使用RestletEngine提供的Connection Helper处理请求，当然Server多了地址和端口属性(还有个next属性，啥用？)。<br><strong>Router</strong><br>Router是一个Restlet，它有助于将URI与Restlet或Resource相关联，以便处理对此URI发出的所有请求;<br>请注意，Router附加了Restlet子类的实例，而Resource通过它们的类来附加。 原因是Resources的设计是为了处理单个请求，因此实例是通过它们的类在运行时生成的。<br>在匹配URI地址时，有Template.MODE_EQUALS  和 Template.MODE_STARTS_WITH匹配策略；在选择处理URI的对象时，有几种算法：</p>
+<blockquote>
+<p>Best match<br>First match (default)<br>Last match<br>Random match<br>Round robin<br>Custom</p>
+</blockquote>
+<p><strong>Application</strong><br>管理一套连贯的Resource和Service，可以作为应用的根restlet也可以作为某一个restlet绑定到一个VirtualHost上。<br>application使用的service是框架来初始化的，我们可以主动禁用某个服务或者设置启用自定义的Service子类。<br>可以重写createInboundRoot()/createOutboundRoot()方法处理所有请求。<br><strong>Service</strong><br>Service是restlet框架提供的给Component和Application使用多种服务（比如connectorService可以控制connector的传输协议），他的生命周期和关联的Application或component紧紧绑定,service内部依赖context<br><img src="/2019/05/05/restlet-示例/service.png" title="image"></p>
+<hr>
+<p><strong>Message</strong><br>component之间传输的内容，负责维护一些http header之类的消息属性、还有对缓存内容的控制（flush/commit等）。<br><img src="/2019/05/05/restlet-示例/message.png" title="image"></p>
+<hr>
+<p><strong>Resource</strong><br>相当于MVC模型中的model,最为统一资源封装了与特定目标resource相对应的Context，Request和Response。</p>
+<p>如图所示，ClientResource和ServerResource分别实现handle()方法（<em>和restlet不重复？</em>），Resource与Context,Request,Response是组合关系。<br><img src="/2019/05/05/restlet-示例/resource.png" title="image"></p>
+<ul>
+<li>生命周期:<br><code>init() - handle() - release()</code> <em>（由子类具体定义）</em></li>
+<li>提供的在生命周期中插入自定义行为的函数：<br><code>doInit() doRelease() doCatch()</code></li>
+<li>线程安全：<br>和restlet不同，resource不会被并发访问，每次调用被handle创建一个resource实例，并且只由一个线程访问<em>（一个请求一个单线程？）</em></li>
+<li>resource使用的方法注解：<blockquote>
+<p>@Get<br>@Put     类似replace操作<br>@Delete<br>@Post<br>@Patch  类似update操作，不是幂等的<br>@Options 测试服务器性能，获得服务端支持的Method等信息<br>@Status 用于异常处理方法</p>
+</blockquote>
+</li>
+</ul>
+<figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br></pre></td><td class="code"><pre><span class="line">//注解的value定义了返回结果的格式，或者请求的参数，以@Post为例：</span><br><span class="line"></span><br><span class="line">   @Post</span><br><span class="line">   public MyOutputBean accept(MyInputBean input);</span><br><span class="line">   </span><br><span class="line">   @Post(&quot;json&quot;)</span><br><span class="line">   public String acceptJson(String value);</span><br><span class="line">   </span><br><span class="line">   @Post(&quot;xml|json:xml|json&quot;)</span><br><span class="line">   public Representation accept(Representation xmlValue);</span><br><span class="line">   </span><br><span class="line">   @Post(&quot;json?param=val&quot;)</span><br><span class="line">   public Representation acceptWithParam(String value);</span><br><span class="line">   </span><br><span class="line">   @Post(&quot;json?param&quot;)</span><br><span class="line">   public Representation acceptWithParam(String value);</span><br><span class="line">   </span><br><span class="line">   @Post(&quot;?param&quot;)</span><br><span class="line">   public Representation acceptWithParam(String value);</span><br></pre></td></tr></table></figure>
+<h3 id="代码示例"><a href="#代码示例" class="headerlink" title="代码示例"></a>代码示例</h3>
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/06/12/mongodb-使用spring-data处理嵌套文档的实践/" rel="next" title="mongodb:使用spring-data处理嵌套文档的实践">
+                <i class="fa fa-chevron-left"></i> mongodb:使用spring-data处理嵌套文档的实践
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2019/05/22/thrift源码-客户端/" rel="prev" title="thrift源码系列1--源码结构和客户端介绍">
+                thrift源码系列1--源码结构和客户端介绍 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#背景介绍"><span class="nav-number">1.</span> <span class="nav-text">背景介绍</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#restlet"><span class="nav-number">1.1.</span> <span class="nav-text">restlet</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#REST"><span class="nav-number">1.2.</span> <span class="nav-text">REST</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#整体视图"><span class="nav-number">2.</span> <span class="nav-text">整体视图</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#核心概念和类图"><span class="nav-number">3.</span> <span class="nav-text">核心概念和类图</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#概念解释对比mvc"><span class="nav-number">3.1.</span> <span class="nav-text">概念解释对比mvc</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#代码示例"><span class="nav-number">4.</span> <span class="nav-text">代码示例</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

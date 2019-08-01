@@ -1,0 +1,937 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="所有的注释和源码都引用自jdk1.7版本的ConcurrentLinkedQueue ABA问题源码注释中对这个问题的说明  Note that like most non-blocking algorithms in this package,this implementation relies on the fact that in garbage collected systems, the">
+<meta name="keywords" content="java基础,并发">
+<meta property="og:type" content="article">
+<meta property="og:title" content="ConcurrentLinkedQueue的几个细节问题">
+<meta property="og:url" content="http://www.throwsnew.com/2018/02/22/ConcurrentLinkedQueue的几个细节问题/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="所有的注释和源码都引用自jdk1.7版本的ConcurrentLinkedQueue ABA问题源码注释中对这个问题的说明  Note that like most non-blocking algorithms in this package,this implementation relies on the fact that in garbage collected systems, the">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:updated_time" content="2018-11-21T16:19:40.622Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="ConcurrentLinkedQueue的几个细节问题">
+<meta name="twitter:description" content="所有的注释和源码都引用自jdk1.7版本的ConcurrentLinkedQueue ABA问题源码注释中对这个问题的说明  Note that like most non-blocking algorithms in this package,this implementation relies on the fact that in garbage collected systems, the">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2018/02/22/ConcurrentLinkedQueue的几个细节问题/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>ConcurrentLinkedQueue的几个细节问题 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2018/02/22/ConcurrentLinkedQueue的几个细节问题/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">ConcurrentLinkedQueue的几个细节问题
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2018-02-22 23:05:46" itemprop="dateCreated datePublished" datetime="2018-02-22T23:05:46+08:00">2018-02-22</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2018-11-22 00:19:40" itemprop="dateModified" datetime="2018-11-22T00:19:40+08:00">2018-11-22</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/jdk源码/" itemprop="url" rel="index"><span itemprop="name">jdk源码</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>所有的注释和源码都引用自jdk1.7版本的ConcurrentLinkedQueue</p>
+<h3 id="ABA问题"><a href="#ABA问题" class="headerlink" title="ABA问题"></a>ABA问题</h3><p>源码注释中对这个问题的说明</p>
+<blockquote>
+<p>Note that like most non-blocking algorithms in this package,this implementation relies on the fact that in garbage collected systems, there is no possibility of ABA problems due to recycled nodes, so there is no need to use “counted pointers” or related techniques seen in versions used in non-GC’ed settings.</p>
+</blockquote>
+<p>(ConcurrentLinkedQueue的实现依赖GC操作，因为GC会收节点所以不会出现ABA问题，因此不需要使用非GC(non-GC’ed)中使用的“计数指针”或相关技术）</p>
+<p>GC能避免ABA问题，主要是因为GC能保证引用值相同时他们指向的内容一定是一样的，具体说明看这里<a href="http://www.cnblogs.com/devos/p/4396773.html" target="_blank" rel="noopener">这个文章讲的不错</a><br><a id="more"></a></p>
+<h3 id="Node的初始化"><a href="#Node的初始化" class="headerlink" title="Node的初始化"></a>Node的初始化</h3><p>为了保证可见性，Node的两个属性都是volatile的<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="class"><span class="keyword">class</span> <span class="title">Node</span>&lt;<span class="title">E</span>&gt; </span>&#123;</span><br><span class="line">        <span class="keyword">volatile</span> E item;</span><br><span class="line">        <span class="keyword">volatile</span> Node&lt;E&gt; next;</span><br></pre></td></tr></table></figure></p>
+<p>但是初始化是没有直接对volatile变量赋值，初始化Node使用的是unsafe的putObject方法<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line">Node(E item) &#123;</span><br><span class="line">        <span class="comment">/**</span></span><br><span class="line"><span class="comment">        * Constructs a new node.  Uses relaxed write because item can</span></span><br><span class="line"><span class="comment">         * only be seen after publication via casNext.</span></span><br><span class="line"><span class="comment">         */</span></span><br><span class="line">            UNSAFE.putObject(<span class="keyword">this</span>, itemOffset, item);</span><br><span class="line">        &#125;</span><br></pre></td></tr></table></figure></p>
+<p>源码中对此的说明</p>
+<blockquote>
+<p>When constructing a Node (before enqueuing it) we avoid paying for a volatile write to item by using Unsafe.putObject instead of a normal write.  This allows the cost of enqueue to be “one-and-a-half” CASes.（避免写volatile操作的开销，使得入队操作的cost相当与1.5个CAS操作）</p>
+</blockquote>
+<p>UNSAFE的putObject相当于对普通变量的写操作（作者称之为relaxed write），因为item是volatile的所以直接对他赋值会触发volatile写（引发缓存一致性操作），使用putObject方法就是为了避免了这一操作。参考<a href="https://stackoverflow.com/questions/46280313/relaxed-write-what-does-it-mean" target="_blank" rel="noopener">对putObject()方法的说明</a></p>
+<p>我理解的是初始化的Node在执行构造函数后还需要执行casNext()方法才能被其他线程看到，因此使用”relaxed write”是安全的。既然node入队操作由初始化和casNext组成（参考offer()源码）,而执行casNext()之后保证了node的可见性，那么减少初始化操作的性能消耗就可以优化入队操作。<br>casNext方法：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="class"><span class="keyword">class</span> <span class="title">Node</span></span>&#123;</span><br><span class="line">    <span class="function"><span class="keyword">boolean</span> <span class="title">casNext</span><span class="params">(Node&lt;E&gt; cmp, Node&lt;E&gt; val)</span> </span>&#123;</span><br><span class="line">            <span class="keyword">return</span> UNSAFE.compareAndSwapObject(<span class="keyword">this</span>, nextOffset, cmp, val);</span><br><span class="line">        &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="引申"><a href="#引申" class="headerlink" title="引申"></a>引申</h3><p>对UNSAFE的一点介绍,UNSAFE的赋值操作：</p>
+<ol>
+<li><strong>putXXX(long address, XXX value)</strong>: Will place the specified value of type XXX directly at the specified address.(指定地址保存变量)</li>
+<li><strong>putXXXVolatile(Object target, long offset, XXX value)</strong><br>Will place value at target’s address at the specified offset and not hit any thread local caches(不会被加载到线程本地缓存，只保存在主存，保证可见性)</li>
+<li><strong>putOrderedXXX(Object target, long offset, XXX value)</strong>: Will place value at target’s address at the specified offet and might not hit all thread local caches.(不保证可见性)</li>
+</ol>
+<h3 id="offer-方法"><a href="#offer-方法" class="headerlink" title="offer()方法"></a>offer()方法</h3><p>jdk1.7中更改了offer的写法，变得更简洁<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">offer</span><span class="params">(E e)</span> </span>&#123;</span><br><span class="line">        checkNotNull(e);</span><br><span class="line">        <span class="keyword">final</span> Node&lt;E&gt; newNode = <span class="keyword">new</span> Node&lt;E&gt;(e);</span><br><span class="line"></span><br><span class="line">        <span class="keyword">for</span> (Node&lt;E&gt; t = tail, p = t;;) &#123;</span><br><span class="line">            Node&lt;E&gt; q = p.next;</span><br><span class="line">            <span class="keyword">if</span> (q == <span class="keyword">null</span>) &#123;</span><br><span class="line">                <span class="comment">// p is last node</span></span><br><span class="line">                <span class="comment">//Node的入队操作</span></span><br><span class="line">                <span class="keyword">if</span> (p.casNext(<span class="keyword">null</span>, newNode)) &#123;</span><br><span class="line">                    <span class="comment">// Successful CAS is the linearization point</span></span><br><span class="line">                    <span class="comment">// for e to become an element of this queue,</span></span><br><span class="line">                    <span class="comment">// and for newNode to become "live".</span></span><br><span class="line">                    <span class="keyword">if</span> (p != t) <span class="comment">// hop two nodes at a time</span></span><br><span class="line">                        casTail(t, newNode);  <span class="comment">// Failure is OK.</span></span><br><span class="line">                    <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">                &#125;</span><br><span class="line">                <span class="comment">// Lost CAS race to another thread; re-read next</span></span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">else</span> <span class="keyword">if</span> (p == q)</span><br><span class="line">                <span class="comment">// We have fallen off list.  If tail is unchanged, it</span></span><br><span class="line">                <span class="comment">// will also be off-list, in which case we need to</span></span><br><span class="line">                <span class="comment">// jump to head, from which all live nodes are always</span></span><br><span class="line">                <span class="comment">// reachable.  Else the new tail is a better bet.</span></span><br><span class="line">                p = (t != (t = tail)) ? t : head;</span><br><span class="line">            <span class="keyword">else</span></span><br><span class="line">                <span class="comment">// Check for tail updates after two hops.</span></span><br><span class="line">                p = (p != t &amp;&amp; t != (t = tail)) ? t : q;</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>对于第24行，(t!=(t=tail))的执行顺序是这样的</p>
+<ol>
+<li>t_old=t</li>
+<li>t=tail</li>
+<li>t_old!=t<br>在执行比较之前tail被赋值给t(new)</li>
+</ol>
+<h3 id="弱一致迭代器导致的GC问题"><a href="#弱一致迭代器导致的GC问题" class="headerlink" title="弱一致迭代器导致的GC问题"></a>弱一致迭代器导致的GC问题</h3><p>在LinkedBlockingQueue也有类似描述</p>
+<blockquote>
+<p>That would cause two problems:</p>
+<pre><code>- allow a rogue Iterator to cause unbounded memory retention
+- cause cross-generational linking of old Nodes to new Nodes if a Node was tenured while live, which generational GCs have a
+</code></pre><p> hard time dealing with, causing repeated major collections.<br>However, only non-deleted Nodes need to be reachable from dequeued Nodes, and reachability does not necessarily have to be of the kind understood by the GC.  We use the trick of linking a Node that has just been dequeued to itself.  Such a self-link implicitly means to advance to head.</p>
+</blockquote>
+<h3 id="常见的使用错误"><a href="#常见的使用错误" class="headerlink" title="常见的使用错误"></a>常见的使用错误</h3><h4 id="谨慎使用addAll-方法"><a href="#谨慎使用addAll-方法" class="headerlink" title="谨慎使用addAll()方法"></a>谨慎使用addAll()方法</h4><p>批量操作不保证原子性，执行addlAll方法是并发的迭代操作可能看不到全部添加到队列的元素。<br>Additionally, the bulk operations addAll, removeAll, retainAll, containsAll, equals, and toArray are not guaranteed to be performed atomically. For example, an iterator operating concurrently with an addAll operation might view only some of the added elements.</p>
+<h4 id="谨慎使用size-方法"><a href="#谨慎使用size-方法" class="headerlink" title="谨慎使用size()方法"></a>谨慎使用size()方法</h4><p>int size()方法返回的值不一定是准确的，currentlinkedqueue只能通过从头遍历来统计数量，在此期间发生的添加和删除操作不会反应到size()的返回结果中。</p>
+<h4 id="head和tail的位置"><a href="#head和tail的位置" class="headerlink" title="head和tail的位置"></a>head和tail的位置</h4><p>head和tail都支持延迟更新（延迟等于或超过两个节点才更新），这样可以减少cas操作，所以head/tail不保证一定指向头结点和尾节点，甚至不保证head和tail之间的相互顺序。</p>
+<blockquote>
+<p>Both head and tail are permitted to lag.  In fact, failing to update them every time one could is a significant optimization(fewer CASes). As with LinkedTransferQueue (see the internal documentation for that class), we use a slack threshold of two;<br>      that is, we update head/tail when the current pointer appears to be two or more steps away from the first/last node.<br>     Since head and tail are updated concurrently and independently, it is possible for tail to lag behind head (why not)?</p>
+</blockquote>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java基础/" rel="tag"># java基础</a>
+          
+            <a href="/tags/并发/" rel="tag"># 并发</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2018/02/02/MySQL事务隔离性测试/" rel="next" title="MySQL事务隔离性测试">
+                <i class="fa fa-chevron-left"></i> MySQL事务隔离性测试
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2018/06/12/mongodb-使用spring-data处理嵌套文档的实践/" rel="prev" title="mongodb:使用spring-data处理嵌套文档的实践">
+                mongodb:使用spring-data处理嵌套文档的实践 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#ABA问题"><span class="nav-number">1.</span> <span class="nav-text">ABA问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Node的初始化"><span class="nav-number">2.</span> <span class="nav-text">Node的初始化</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#引申"><span class="nav-number">3.</span> <span class="nav-text">引申</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#offer-方法"><span class="nav-number">4.</span> <span class="nav-text">offer()方法</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#弱一致迭代器导致的GC问题"><span class="nav-number">5.</span> <span class="nav-text">弱一致迭代器导致的GC问题</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#常见的使用错误"><span class="nav-number">6.</span> <span class="nav-text">常见的使用错误</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#谨慎使用addAll-方法"><span class="nav-number">6.1.</span> <span class="nav-text">谨慎使用addAll()方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#谨慎使用size-方法"><span class="nav-number">6.2.</span> <span class="nav-text">谨慎使用size()方法</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#head和tail的位置"><span class="nav-number">6.3.</span> <span class="nav-text">head和tail的位置</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

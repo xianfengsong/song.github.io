@@ -1,0 +1,913 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="一、建立连接当slave收到客户端发来的slave of 命令之后，首先会在redisServer结构体中保存master的host和ip地址，然后建立一个到master的socket连接。连接成功后，slave会发送PING命令来测试连接是否可用，成功获得响应后，执行REPLCONF命令把自己的listen_port发送到master,后者会在redisClient中包存slave的监听端口。">
+<meta name="keywords" content="redis,nosql,源码">
+<meta property="og:type" content="article">
+<meta property="og:title" content="图解redis主从">
+<meta property="og:url" content="http://www.throwsnew.com/2017/10/22/图解redis主从/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="一、建立连接当slave收到客户端发来的slave of 命令之后，首先会在redisServer结构体中保存master的host和ip地址，然后建立一个到master的socket连接。连接成功后，slave会发送PING命令来测试连接是否可用，成功获得响应后，执行REPLCONF命令把自己的listen_port发送到master,后者会在redisClient中包存slave的监听端口。">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/conn1.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/FULLSYNC.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/prpogate2.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/incssync.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/ping.png">
+<meta property="og:updated_time" content="2019-05-04T16:09:49.938Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="图解redis主从">
+<meta name="twitter:description" content="一、建立连接当slave收到客户端发来的slave of 命令之后，首先会在redisServer结构体中保存master的host和ip地址，然后建立一个到master的socket连接。连接成功后，slave会发送PING命令来测试连接是否可用，成功获得响应后，执行REPLCONF命令把自己的listen_port发送到master,后者会在redisClient中包存slave的监听端口。">
+<meta name="twitter:image" content="http://www.throwsnew.com/images/redis/conn1.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2017/10/22/图解redis主从/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>图解redis主从 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2017/10/22/图解redis主从/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">图解redis主从
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2017-10-22 21:15:46" itemprop="dateCreated datePublished" datetime="2017-10-22T21:15:46+08:00">2017-10-22</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-05-05 00:09:49" itemprop="dateModified" datetime="2019-05-05T00:09:49+08:00">2019-05-05</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/redis进阶/" itemprop="url" rel="index"><span itemprop="name">redis进阶</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="一、建立连接"><a href="#一、建立连接" class="headerlink" title="一、建立连接"></a>一、建立连接</h3><p>当slave收到客户端发来的slave of 命令之后，首先会在redisServer结构体中保存master的host和ip地址，然后建立一个到master的socket连接。<br>连接成功后，slave会发送PING命令来测试连接是否可用，成功获得响应后，执行REPLCONF命令把自己的listen_port发送到master,后者会在redisClient中包存slave的监听端口。<br><a id="more"></a></p>
+<p><img src="/images/redis/conn1.png" alt="连接"></p>
+<h3 id="二、初次同步数据"><a href="#二、初次同步数据" class="headerlink" title="二、初次同步数据"></a>二、初次同步数据</h3><p>连接成功后，slave会发送<strong>PSYNC</strong>命令请求同步数据，由于第一次同步，所以会执行一次<strong>完整重同步</strong>的过程，master收到请求后执行<strong>BGSAVE</strong>命令创建RDB文件<a href="当配置设置同步方式为Disk-backed时才会把RDB文件写入磁盘，Diskless模式会直接把RDB文件写到slave的socket">^code</a>，然后把数据发送到slave<br><img src="/images/redis/FULLSYNC.png" alt="full同步"></p>
+<h3 id="三、命令传播（propagate）"><a href="#三、命令传播（propagate）" class="headerlink" title="三、命令传播（propagate）"></a>三、命令传播（propagate）</h3><p>同步完成后，master收到的写命令，会由master发送到slave，保证数据同步。命令在master执行成功后会立刻向客户端发送结果，因此命令传播是<strong>异步执行</strong>的，因此redis只能保证主从数据的<strong>最终一致性</strong>。<br>在命令传播的过程中，master不只把数据发送给slave,还会保存在AOF文件，和复制积压缓冲区(backlog buffer)内。[a]<br><img src="/images/redis/prpogate2.png" alt="此处输入图片的描述"></p>
+<h3 id="四、增量重同步"><a href="#四、增量重同步" class="headerlink" title="四、增量重同步"></a>四、增量重同步</h3><p>刚才提到的backlog buffer是一个FIFO的定长队列(环形队列实现)，默认1MB大小，可以通过<code>repl_backlog_size</code>配置。它的作用是保存最近的更新命令并记录offsetr。当slave断线重连时，如果能根据offset在buffer中找到丢失的数据,那么只需增量的复制丢失数据即可，不需要进行完成的重同步。<br><img src="/images/redis/incssync.png" alt="此处输入图片的描述"></p>
+<h3 id="五、心跳消息"><a href="#五、心跳消息" class="headerlink" title="五、心跳消息"></a>五、心跳消息</h3><p>slave定时向master发送REPLCONF命令，通知master当前的自己offset，当master发现slave复制落后时，会主动发送丢失了命令。<br>心跳消息让master了解slave的连接状态，如果当前slave数量小于min-slave，master会拒绝写命令。info命令输出的lag值反应了slave的上次通信时间。（master也会主动向slave发送PING命令）<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"># Replication</span><br><span class="line">role:master</span><br><span class="line">connected_slaves:2</span><br><span class="line">slave0:ip=127.0.0.1,port=6381,state=online,offset=4518,lag=1</span><br><span class="line">slave1:ip=127.0.0.1,port=6380,state=online,offset=4518,lag=1</span><br></pre></td></tr></table></figure></p>
+<p><img src="/images/redis/ping.png" alt="heart"></p>
+<h3 id="六、-补充"><a href="#六、-补充" class="headerlink" title="六、 补充"></a>六、 补充</h3><p>这是一次重新连接的日志，从服务器发送同步请求，master回复rdb文件。日志中<strong>Partial resynchronization not possible (no cached master)</strong>表示尝试增量同步失败，在我使用redis 2.8.19版本时似乎无法模拟出增量同步的情况，每次断线重连都是完整同步，按照作者说明关闭了slave的aof也不行(同步时不能进行write aof)，<a href="https://github.com/antirez/redis/issues/4102" target="_blank" rel="noopener">github上这个问题对应的issue</a><br><strong>从服务器</strong><br><figure class="highlight plain"><figcaption><span>11 Jan 20:25:34.722 * DB loaded from disk: 2.233 seconds</span></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line">[15846] 11 Jan 20:25:34.722 * The server is now ready to accept connections on port 6380</span><br><span class="line">[15846] 11 Jan 20:25:35.490 * Connecting to MASTER 127.0.0.1:6379</span><br><span class="line">[15846] 11 Jan 20:25:35.491 * MASTER &lt;-&gt; SLAVE sync started</span><br><span class="line">[15846] 11 Jan 20:25:35.491 * Non blocking connect for SYNC fired the event.</span><br><span class="line">[15846] 11 Jan 20:25:35.491 * Master replied to PING, replication can continue...</span><br><span class="line">[15846] 11 Jan 20:25:35.491 * Partial resynchronization not possible (no cached master)</span><br><span class="line">[15846] 11 Jan 20:25:35.495 * Full resync from master: 13cb06d81ed35702e1cf20dba3aa1159b9a068bd:15931</span><br><span class="line">[15846] 11 Jan 20:25:41.428 * MASTER &lt;-&gt; SLAVE sync: receiving 225990523 bytes from master</span><br><span class="line">[15846] 11 Jan 20:25:44.383 * MASTER &lt;-&gt; SLAVE sync: Flushing old data</span><br><span class="line">[15846] 11 Jan 20:25:44.560 * MASTER &lt;-&gt; SLAVE sync: Loading DB in memory</span><br><span class="line">[15846] 11 Jan 20:25:46.948 * MASTER &lt;-&gt; SLAVE sync: Finished with success</span><br></pre></td></tr></table></figure></p>
+<p><strong>主服务器：</strong><br><figure class="highlight plain"><figcaption><span>11 Jan 20:23:17.478 # Connection with slave 127.0.0.1:6380 lost.</span></figcaption><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line">[14562] 11 Jan 20:23:29.644 # Connection with slave 127.0.0.1:6381 lost.</span><br><span class="line">[14562] 11 Jan 20:25:35.492 * Slave 127.0.0.1:6380 asks for synchronization</span><br><span class="line">[14562] 11 Jan 20:25:35.492 * Full resync requested by slave 127.0.0.1:6380</span><br><span class="line">[14562] 11 Jan 20:25:35.492 * Starting BGSAVE for SYNC with target: disk</span><br><span class="line">[14562] 11 Jan 20:25:35.494 * Background saving started by pid 15849</span><br><span class="line">[14562] 11 Jan 20:25:40.504 * Slave 127.0.0.1:6381 asks for synchronization</span><br><span class="line">[14562] 11 Jan 20:25:40.504 * Full resync requested by slave 127.0.0.1:6381</span><br><span class="line">[14562] 11 Jan 20:25:40.504 * Waiting for end of BGSAVE for SYNC</span><br><span class="line">[15849] 11 Jan 20:25:41.341 * DB saved on disk</span><br><span class="line">[15849] 11 Jan 20:25:41.342 * RDB: 76 MB of memory used by copy-on-write</span><br><span class="line">[14562] 11 Jan 20:25:41.427 * Background saving terminated with success</span><br><span class="line">[14562] 11 Jan 20:25:44.180 * Synchronization with slave 127.0.0.1:6381 succeeded</span><br><span class="line">[14562] 11 Jan 20:25:44.461 * Synchronization with slave 127.0.0.1:6380 succeeded</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/redis/" rel="tag"># redis</a>
+          
+            <a href="/tags/nosql/" rel="tag"># nosql</a>
+          
+            <a href="/tags/源码/" rel="tag"># 源码</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/09/12/为什么Redis使用ziplist能节省内存/" rel="next" title="为什么Redis使用ziplist能节省内存？">
+                <i class="fa fa-chevron-left"></i> 为什么Redis使用ziplist能节省内存？
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/11/21/图解redis sentinel/" rel="prev" title="图解redis sentinel">
+                图解redis sentinel <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#一、建立连接"><span class="nav-number">1.</span> <span class="nav-text">一、建立连接</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#二、初次同步数据"><span class="nav-number">2.</span> <span class="nav-text">二、初次同步数据</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#三、命令传播（propagate）"><span class="nav-number">3.</span> <span class="nav-text">三、命令传播（propagate）</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#四、增量重同步"><span class="nav-number">4.</span> <span class="nav-text">四、增量重同步</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#五、心跳消息"><span class="nav-number">5.</span> <span class="nav-text">五、心跳消息</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#六、-补充"><span class="nav-number">6.</span> <span class="nav-text">六、 补充</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

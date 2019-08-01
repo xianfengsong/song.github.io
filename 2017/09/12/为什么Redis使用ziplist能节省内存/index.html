@@ -1,0 +1,959 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="环境准备:redis 2.8.19 单机模式保存500万条用户信息数据，key是用户名 ，value是json格式字符串，包含邮箱等信息，内容如下:userid:  &amp;quot;tomcat125&amp;quot; info:  &amp;quot;[null,\&amp;quot;tomcat125@gmail.com\&amp;quot;,188XXXXXXXX,\&amp;quot;\&amp;quot;,null,null,\&amp;quo">
+<meta name="keywords" content="redis,nosql,源码">
+<meta property="og:type" content="article">
+<meta property="og:title" content="为什么Redis使用ziplist能节省内存？">
+<meta property="og:url" content="http://www.throwsnew.com/2017/09/12/为什么Redis使用ziplist能节省内存/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="环境准备:redis 2.8.19 单机模式保存500万条用户信息数据，key是用户名 ，value是json格式字符串，包含邮箱等信息，内容如下:userid:  &amp;quot;tomcat125&amp;quot; info:  &amp;quot;[null,\&amp;quot;tomcat125@gmail.com\&amp;quot;,188XXXXXXXX,\&amp;quot;\&amp;quot;,null,null,\&amp;quo">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/ht.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/redis/ziplist.png">
+<meta property="og:updated_time" content="2019-05-04T15:56:14.635Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="为什么Redis使用ziplist能节省内存？">
+<meta name="twitter:description" content="环境准备:redis 2.8.19 单机模式保存500万条用户信息数据，key是用户名 ，value是json格式字符串，包含邮箱等信息，内容如下:userid:  &amp;quot;tomcat125&amp;quot; info:  &amp;quot;[null,\&amp;quot;tomcat125@gmail.com\&amp;quot;,188XXXXXXXX,\&amp;quot;\&amp;quot;,null,null,\&amp;quo">
+<meta name="twitter:image" content="http://www.throwsnew.com/images/redis/ht.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2017/09/12/为什么Redis使用ziplist能节省内存/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>为什么Redis使用ziplist能节省内存？ | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2017/09/12/为什么Redis使用ziplist能节省内存/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">为什么Redis使用ziplist能节省内存？
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2017-09-12 21:15:46" itemprop="dateCreated datePublished" datetime="2017-09-12T21:15:46+08:00">2017-09-12</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-05-04 23:56:14" itemprop="dateModified" datetime="2019-05-04T23:56:14+08:00">2019-05-04</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/redis进阶/" itemprop="url" rel="index"><span itemprop="name">redis进阶</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p><strong>环境准备:</strong><br>redis 2.8.19 单机模式<br>保存500万条用户信息数据，key是用户名 ，value是json格式字符串，包含邮箱等信息，内容如下:<br><code>userid:  &quot;tomcat125&quot;
+info:  &quot;[null,\&quot;tomcat125@gmail.com\&quot;,188XXXXXXXX,\&quot;\&quot;,null,null,\&quot;\xe9\x9c\x8d\xe6\xb3\x13\xx4\xb8\xs0\&quot;,\&quot;1\&quot;,null,\&quot;tom123321\&quot;]&quot;</code></p>
+<p>redis和ziplist配置有关的有这几个，默认值如下：<br><a id="more"></a></p>
+<p><code>config get *ziplist*</code></p>
+<blockquote>
+<p>1) “hash-max-ziplist-entries”<br> 2) “512”<br> 3) “hash-max-ziplist-value”<br> 4) “64”<br> 5) “list-max-ziplist-entries”<br> 6) “512”<br> 7) “list-max-ziplist-value”<br> 8) “64”<br> 9) “zset-max-ziplist-entries”<br>10) “128”<br>11) “zset-max-ziplist-value”<br>12) “64”</p>
+</blockquote>
+<p>-entries表示ziplsit对多保存数据项的个数，超出之后不能再使用ziplist<br>-value表示每个数据项的最大字节数，超出之后不能再使用ziplist</p>
+<h2 id="一-使用ziplist真的能节省内存吗？"><a href="#一-使用ziplist真的能节省内存吗？" class="headerlink" title="一.使用ziplist真的能节省内存吗？"></a>一.使用ziplist真的能节省内存吗？</h2><p>在这我用hash对象用户信息，对比一下使用ziplist前后的内存差异：<br>为了使用hash保存，对用户名做hash然后取模得到一个hashkey<br>然后保存时执行命令：<code>hset hashkey username info</code></p>
+<h3 id="使用hashtable保存："><a href="#使用hashtable保存：" class="headerlink" title="使用hashtable保存："></a>使用hashtable保存：</h3><p>ziplist设置：</p>
+<blockquote>
+<p>config get hash*<br>1) “hash-max-ziplist-entries”<br>2) “512”<br>3) “hash-max-ziplist-value”<br>4) “64”</p>
+</blockquote>
+<p>hash对象信息(hashtable保存)：</p>
+<blockquote>
+<p>“debug object nozip:3134”<br>Value at:0x7f4957621d40 refcount:1<br><strong>encoding</strong>:<strong>hashtable</strong><br><strong>serializedlength:39927</strong><br>lru:3356615 lru_seconds_idle:24</p>
+</blockquote>
+<p>内存占用：</p>
+<blockquote>
+<p>“dbsize”<br>(integer) 12000<br>info Memory<br># Memory<br>used_memory:1102326968<br><strong>used_memory_human:1.03G</strong><br>used_memory_rss:1150930944<br>used_memory_peak:1102463200<br>used_memory_peak_human:1.03G<br>used_memory_lua:35840<br>mem_fragmentation_ratio:1.04</p>
+</blockquote>
+<p>清理内存，重启redis<br><figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">redis&gt;flushall</span><br><span class="line">systemctl stop redis.service</span><br><span class="line">systemctl start redis.service</span><br></pre></td></tr></table></figure></p>
+<h3 id="使用ziplist保存"><a href="#使用ziplist保存" class="headerlink" title="使用ziplist保存:"></a>使用ziplist保存:</h3><p>修改ziplist设置(json串平均长度150)：</p>
+<blockquote>
+<p>“config get hash*”<br>1) “hash-max-ziplist-entries”<br>2) “1000”<br>3) “hash-max-ziplist-value”<br>4) “250”</p>
+</blockquote>
+<p>hash对象信息（ziplist保存）：</p>
+<blockquote>
+<p>“debug object nozip:3134”<br>Value at:0x7f490d21c150 refcount:1<br><strong>encoding:ziplist</strong><br><strong>serializedlength:18713</strong><br>lru:3360532 lru_seconds_idle:93</p>
+</blockquote>
+<p>内存占用：</p>
+<blockquote>
+<p>“dbsize”<br>(integer) 12000<br>info Memory<br># Memory<br>used_memory:573333824<br><strong>used_memory_human:546.77M</strong><br>used_memory_rss:633442304<br>used_memory_peak:1102178520<br>used_memory_peak_human:1.03G<br>used_memory_lua:35840<br>mem_fragmentation_ratio:1.10</p>
+</blockquote>
+<p>在上面的例子中可以看到利用ziplist在保存12000个hash对象时，<strong>used_memory节省了近50%</strong><br>同一个key的serializedlength也差不多是原来的一半(39927-18731)，但是serializedLength表示的不是key的实际内存占用，而是保存到rdb文件之后key的占用字节数，小于key的实际内存占用。<br>（<a href="https://github.com/antirez/redis/blob/4082c38a60eedd524c78ef48c1b241105f4ddc50/src/debug.c#L337-L343" target="_blank" rel="noopener">参考serializedLength源</a>）</p>
+<h2 id="二-ziplist为什么能节省内存？"><a href="#二-ziplist为什么能节省内存？" class="headerlink" title="二.ziplist为什么能节省内存？"></a>二.ziplist为什么能节省内存？</h2><p>从debug object的输出信息来看，两次分别是使用hashtable和ziplist保存的，为什么ziplist会比hashtable节省内存呢，这要从二者的数据结构说起。</p>
+<h3 id="1-hashtable结构："><a href="#1-hashtable结构：" class="headerlink" title="1.hashtable结构："></a>1.hashtable结构：</h3><p>hashtable使用字典保存，字典包含两个hashtable,hashtable由entry数组构成，数组中的节点包含一个next指针，形成一个单向链表。<br>redis字典定义：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//dict.h</span></span><br><span class="line"><span class="comment">//字典</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dict</span> &#123;</span></span><br><span class="line">    dictType *type;</span><br><span class="line">    <span class="keyword">void</span> *privdata;</span><br><span class="line">    dictht ht[<span class="number">2</span>];</span><br><span class="line">    <span class="keyword">int</span> rehashidx; <span class="comment">/* rehashing not in progress if rehashidx == -1 */</span></span><br><span class="line">    <span class="keyword">int</span> iterators; <span class="comment">/* number of iterators currently running */</span></span><br><span class="line">&#125; dict;</span><br><span class="line"><span class="comment">//字典内部hashtable</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictht</span> &#123;</span></span><br><span class="line">    dictEntry **table;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> size;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> sizemask;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">long</span> used;</span><br><span class="line">&#125; dictht;</span><br><span class="line"><span class="comment">//hashtable节点</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> &#123;</span></span><br><span class="line">    <span class="keyword">void</span> *key;</span><br><span class="line">    <span class="keyword">union</span> &#123;</span><br><span class="line">        <span class="keyword">void</span> *val;</span><br><span class="line">        <span class="keyword">uint64_t</span> u64;</span><br><span class="line">        <span class="keyword">int64_t</span> s64;</span><br><span class="line">    &#125; v;</span><br><span class="line">    <span class="class"><span class="keyword">struct</span> <span class="title">dictEntry</span> *<span class="title">next</span>;</span></span><br><span class="line">&#125; dictEntry;</span><br></pre></td></tr></table></figure></p>
+<p>下图展示了一个普通状态下的字典,数据保存在ht[0]，ht<a href="https://github.com/antirez/redis/blob/4082c38a60eedd524c78ef48c1b241105f4ddc50/src/debug.c#L337-L343" target="_blank" rel="noopener">1</a>在扩容时使用：<br><img src="/images/redis/ht.png" alt="ht"></p>
+<h3 id="2-ziplist结构："><a href="#2-ziplist结构：" class="headerlink" title="2.ziplist结构："></a>2.ziplist结构：</h3><p><strong>zlbytes</strong>：表示ziplist占用字节数，在执行resize操作时使用<br><strong>zltail</strong>：表示最后节点的偏移量，也是避免了整体遍历list<br><strong>zllen</strong>：表示ziplist节点个数（节点数超过65535,zllen字段值无效,需要遍历才能得到真实数量）<br><strong>zlend</strong>：表示ziplist结束的标识符</p>
+<p><strong>ziplist节点数据结构（抽象）：</strong><br>每个压缩列表节点都由previous_entry_length、encoding、content三个部分组成（不是指实际结构体的字段）<br><strong>previous_entry_length</strong>：前一个节点的长度，用来由后向前遍历，根据前一个节点的长度，可能需要一个或五个字节。<br><strong>encoding</strong>：记录节点保存的数据类型和数据长度。<br><strong>content</strong>：节点保存的数据内容。<br>ziplist节点结构体（和上面的有点不一样）:<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//ziplist.c</span></span><br><span class="line"><span class="keyword">typedef</span> <span class="class"><span class="keyword">struct</span> <span class="title">zlentry</span> &#123;</span></span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> prevrawlensize, prevrawlen;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> lensize, len;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> headersize;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">char</span> encoding;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">char</span> *p;</span><br><span class="line">&#125; zlentry;</span><br></pre></td></tr></table></figure></p>
+<p>下图展示了一个ziplist的基本结构：<br><img src="/images/redis/ziplist.png" alt="ziplist"></p>
+<p>可以看到，ziplist采用了一段连续的内存来存储数据，相比hashtable减少了内存碎片，和指针的内存占用。而且当节点较少时，ziplist更容易被加载到CPU缓存中。</p>
+<h2 id="三，调试源码"><a href="#三，调试源码" class="headerlink" title="三，调试源码"></a>三，调试源码</h2><p>眼见为实，现在通过vs2012启动redis server，调试redis源码对比hashtable和ziplist的处理过程。</p>
+<h3 id="调试hashtable保存hash对象"><a href="#调试hashtable保存hash对象" class="headerlink" title="调试hashtable保存hash对象"></a>调试hashtable保存hash对象</h3><p>server启动后，首先在t_hash.c 的hsetCommand函数打断点<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//t_hash.c</span></span><br><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">hsetCommand</span><span class="params">(redisClient *c)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">int</span> update;</span><br><span class="line">    robj *o;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> ((o = hashTypeLookupWriteOrCreate(c,c-&gt;argv[<span class="number">1</span>])) == <span class="literal">NULL</span>) <span class="keyword">return</span>;</span><br><span class="line">    hashTypeTryConversion(o,c-&gt;argv,<span class="number">2</span>,<span class="number">3</span>);</span><br><span class="line">    hashTypeTryObjectEncoding(o,&amp;c-&gt;argv[<span class="number">2</span>], &amp;c-&gt;argv[<span class="number">3</span>]);</span><br><span class="line">    update = hashTypeSet(o,c-&gt;argv[<span class="number">2</span>],c-&gt;argv[<span class="number">3</span>]);</span><br><span class="line">    addReply(c, update ? shared.czero : shared.cone);</span><br><span class="line">    signalModifiedKey(c-&gt;db,c-&gt;argv[<span class="number">1</span>]);</span><br><span class="line">    server.dirty++;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>在客户端执行命令,修改ziplist配置最大长度改成10，然后添加一个value长度超过10的hash对象：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; config set hash-max-ziplist-value 10</span><br><span class="line">127.0.0.1:6379&gt; hset hash_key fieldkey abcdefghijklmn</span><br></pre></td></tr></table></figure></p>
+<p>进入t_hash.c文件的函数hashTypeSet,在这里redis判断对象编码为hashtable，使用字典保存:<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//t_hash.c</span></span><br><span class="line"><span class="keyword">else</span> <span class="keyword">if</span> (o-&gt;encoding == REDIS_ENCODING_HT) &#123;</span><br><span class="line">        <span class="keyword">if</span> (dictReplace(o-&gt;ptr, field, value)) &#123; <span class="comment">/* Insert */</span></span><br><span class="line">            incrRefCount(field);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123; <span class="comment">/* Update */</span></span><br><span class="line">            update = <span class="number">1</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        incrRefCount(value);</span><br></pre></td></tr></table></figure></p>
+<p>在dict.c文件dictAdd标记断点，开始分别保存key&amp;value到dict：<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//dict.c</span></span><br><span class="line"><span class="function"><span class="keyword">int</span> <span class="title">dictAdd</span><span class="params">(dict *d, <span class="keyword">void</span> *key, <span class="keyword">void</span> *val)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="comment">//往字典中添加一个只有key的dictEntry</span></span><br><span class="line">    dictEntry *entry = dictAddRaw(d,key);</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (!entry) <span class="keyword">return</span> DICT_ERR;</span><br><span class="line">    <span class="comment">//保存entry值的内容</span></span><br><span class="line">    dictSetVal(d, entry, val);</span><br><span class="line">    <span class="keyword">return</span> DICT_OK;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>首先redis调用函数dictAddRaw()保存hash key<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//dict.c</span></span><br><span class="line"><span class="function">dictEntry *<span class="title">dictAddRaw</span><span class="params">(dict *d, <span class="keyword">void</span> *key)</span></span></span><br><span class="line"><span class="function"></span>&#123;</span><br><span class="line">    <span class="keyword">int</span> index;</span><br><span class="line">    dictEntry *entry;</span><br><span class="line">    dictht *ht;</span><br><span class="line">    <span class="comment">//因为redis采用渐进式rehash，首先要做rehash检查</span></span><br><span class="line">    <span class="keyword">if</span> (dictIsRehashing(d)) _dictRehashStep(d);</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Get the index of the new element, or -1 if</span></span><br><span class="line"><span class="comment">     * the element already exists. */</span></span><br><span class="line">    <span class="keyword">if</span> ((index = _dictKeyIndex(d, key)) == <span class="number">-1</span>)</span><br><span class="line">        <span class="keyword">return</span> <span class="literal">NULL</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 如果字典正在rehash，则插入到新表ht[1]，否则到旧表ht[0]</span></span><br><span class="line">    ht = dictIsRehashing(d) ? &amp;d-&gt;ht[<span class="number">1</span>] : &amp;d-&gt;ht[<span class="number">0</span>];</span><br><span class="line">    <span class="comment">/* 申请内存 保存新的entry节点*/</span></span><br><span class="line">    entry = zmalloc(<span class="keyword">sizeof</span>(*entry));</span><br><span class="line">    entry-&gt;next = ht-&gt;table[index];</span><br><span class="line">    ht-&gt;table[index] = entry;</span><br><span class="line">    ht-&gt;used++;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* 保存entry key的内容 */</span></span><br><span class="line">    dictSetKey(d, entry, key);</span><br><span class="line">    <span class="keyword">return</span> entry;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p><strong>估算内存</strong><br>因为内存对齐的原因，sizeof(dictEntry)=24，为entry申请了24字节内存。估算一个节点的字节数 <strong>47byte</strong>(key 9bytes,val 14bytes,entry 24bytes)</p>
+<h3 id="调试ziplist保存hash对象"><a href="#调试ziplist保存hash对象" class="headerlink" title="调试ziplist保存hash对象"></a>调试ziplist保存hash对象</h3><p>首先清理数据，修改ziplist配置放宽value长度限制，保存同样内容：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">127.0.0.1:6379&gt; flushall</span><br><span class="line">127.0.0.1:6379&gt; config set hash-max-ziplist-value 15</span><br><span class="line">127.0.0.1:6379&gt; hset hash_key fieldkey abcdefghijklmn</span><br></pre></td></tr></table></figure></p>
+<p>此时还是在t_hash.c文件的函数hashTypeSet打断点,redis选择用ziplist编码保存hash对象<br><figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//t_hash.c hashTypeSet()</span></span><br><span class="line"><span class="keyword">if</span> (o-&gt;encoding == REDIS_ENCODING_ZIPLIST) &#123;</span><br><span class="line">        <span class="keyword">unsigned</span> <span class="keyword">char</span> *zl, *fptr, *vptr;</span><br><span class="line"></span><br><span class="line">        field = getDecodedObject(field);</span><br><span class="line">        value = getDecodedObject(value);</span><br><span class="line"></span><br><span class="line">        zl = o-&gt;ptr;</span><br><span class="line">        fptr = ziplistIndex(zl, ZIPLIST_HEAD);</span><br><span class="line">        <span class="keyword">if</span> (fptr != <span class="literal">NULL</span>) &#123;</span><br><span class="line">            <span class="comment">//略</span></span><br><span class="line">        &#125;</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (!update) &#123;</span><br><span class="line">            <span class="comment">/* Push new field/value pair onto the tail of the ziplist */</span></span><br><span class="line">            zl = ziplistPush(zl, field-&gt;ptr, (<span class="keyword">unsigned</span> <span class="keyword">int</span>)sdslen(field-&gt;ptr), ZIPLIST_TAIL);</span><br><span class="line">            zl = ziplistPush(zl, value-&gt;ptr, (<span class="keyword">unsigned</span> <span class="keyword">int</span>)sdslen(value-&gt;ptr), ZIPLIST_TAIL);</span><br><span class="line">        &#125;</span><br><span class="line">        o-&gt;ptr = zl;</span><br><span class="line">        <span class="comment">//引用计数</span></span><br><span class="line">        decrRefCount(field);</span><br><span class="line">        decrRefCount(value);</span><br><span class="line"></span><br><span class="line">        <span class="comment">/*检查是否要换成hashtable编码*/</span></span><br><span class="line">        <span class="keyword">if</span> (hashTypeLength(o) &gt; server.hash_max_ziplist_entries)</span><br><span class="line">            hashTypeConvert(o, REDIS_ENCODING_HT);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>在ziplistPush内部调用了 ziplistInsert()函数，打开ziplist.c文件，在__ziplistInsert()函数打断点：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br><span class="line">80</span><br><span class="line">81</span><br><span class="line">82</span><br><span class="line">83</span><br><span class="line">84</span><br><span class="line">85</span><br><span class="line">86</span><br><span class="line">87</span><br><span class="line">88</span><br><span class="line">89</span><br><span class="line">90</span><br><span class="line">91</span><br><span class="line">92</span><br><span class="line">93</span><br><span class="line">94</span><br><span class="line">95</span><br><span class="line">96</span><br><span class="line">97</span><br><span class="line">98</span><br><span class="line">99</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//ziplist.c</span></span><br><span class="line"><span class="keyword">static</span> <span class="keyword">unsigned</span> <span class="keyword">char</span> *__ziplistInsert(<span class="keyword">unsigned</span> <span class="keyword">char</span> *zl, <span class="keyword">unsigned</span> <span class="keyword">char</span> *p, <span class="keyword">unsigned</span> <span class="keyword">char</span> *s, <span class="keyword">unsigned</span> <span class="keyword">int</span> slen) &#123;</span><br><span class="line">    <span class="comment">//当前ziplist的长度</span></span><br><span class="line">    <span class="keyword">size_t</span> curlen = intrev32ifbe(ZIPLIST_BYTES(zl)), reqlen;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">int</span> prevlensize, prevlen = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">size_t</span> offset;</span><br><span class="line">    <span class="keyword">int</span> nextdiff = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">unsigned</span> <span class="keyword">char</span> encoding = <span class="number">0</span>;</span><br><span class="line">    <span class="keyword">long</span> <span class="keyword">long</span> value = <span class="number">123456789</span>; </span><br><span class="line">    zlentry tail;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">if</span> (p[<span class="number">0</span>] != ZIP_END) &#123;</span><br><span class="line">        <span class="comment">// 如果p节点后面还有节点，取出p节点前一个节点的长度信息和存储该长度值所需要的字节数信息</span></span><br><span class="line">        ZIP_DECODE_PREVLEN(p, prevlensize, prevlen);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果p节点为ziplist结束标识，则取出尾节点，即最后一个节点</span></span><br><span class="line">        <span class="keyword">unsigned</span> <span class="keyword">char</span> *ptail = ZIPLIST_ENTRY_TAIL(zl);</span><br><span class="line">        <span class="keyword">if</span> (ptail[<span class="number">0</span>] != ZIP_END) &#123;</span><br><span class="line">            prevlen = zipRawEntryLength(ptail);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 尝试看能否将s保存为整数，如果可以则返回1，且value和encoding分别保存新值和编码信息</span></span><br><span class="line">    <span class="keyword">if</span> (zipTryEncoding(s,slen,&amp;value,&amp;encoding)) &#123;</span><br><span class="line">        <span class="comment">// 如果s可以保存为整数，则进一步计算保存该数值所需要的字节数</span></span><br><span class="line">        reqlen = zipIntSize(encoding);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果s不能保存为整数，则直接使用其字符串长度</span></span><br><span class="line">        reqlen = slen;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 计算编码prevlen所需要的字节数，prevlen用于保存前一个节点的长度</span></span><br><span class="line">    reqlen += zipPrevEncodeLength(<span class="literal">NULL</span>,prevlen);</span><br><span class="line">    <span class="comment">// 计算编码slen所需要的长度</span></span><br><span class="line">    reqlen += zipEncodeLength(<span class="literal">NULL</span>,encoding,slen);</span><br><span class="line"></span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 当插入的位置不是ziplist尾部时，需要确保下一个节点（即p节点）的prevlen能够用来保存即将插入节点的长度</span></span><br><span class="line">    <span class="comment">// 这里计算两者差值</span></span><br><span class="line">    nextdiff = (p[<span class="number">0</span>] != ZIP_END) ? zipPrevLenByteDiff(p,reqlen) : <span class="number">0</span>;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// ziplistResize操作会重新分配空间，需要事前记录p节点偏移量</span></span><br><span class="line">    offset = p-zl;</span><br><span class="line">    zl = ziplistResize(zl,curlen+reqlen+nextdiff);</span><br><span class="line">    <span class="comment">// 重新取得p节点</span></span><br><span class="line">    p = zl+offset;</span><br><span class="line"></span><br><span class="line">    <span class="comment">/* Apply memory move when necessary and update tail offset. */</span></span><br><span class="line">    <span class="keyword">if</span> (p[<span class="number">0</span>] != ZIP_END) &#123;</span><br><span class="line">        <span class="comment">/* 将原来 p-nextdiff 开始的数据全部后移，中间出现reqlen个字节保存即将插入的数据 </span></span><br><span class="line"><span class="comment">            主要需要考虑一下几种情况：</span></span><br><span class="line"><span class="comment">            nextdiff == 0：p节点中用来存储原先前一个节点长度信息的数据区域正好保存待插入节点的长度</span></span><br><span class="line"><span class="comment">            nextdiff == 4：原先p节点只需要1个字节来存储上一个节点的长度，现在需要5个字节。那就将p-4后面的数据偏移到p+reqlen</span></span><br><span class="line"><span class="comment">            nextdiff == -4：原先p节点需要5个字节来存储上一个节点的长度，现在只需要1个字节。那就将p+4后面的数据偏移到p+reqlen</span></span><br><span class="line"><span class="comment">        */</span></span><br><span class="line">        memmove(p+reqlen,p-nextdiff,curlen-offset<span class="number">-1</span>+nextdiff);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 为p节点的prevlen设置新值，即待插入节点的长度</span></span><br><span class="line">        zipPrevEncodeLength(p+reqlen,reqlen);</span><br><span class="line"></span><br><span class="line">        <span class="comment">// 更新尾节点偏移量</span></span><br><span class="line">        ZIPLIST_TAIL_OFFSET(zl) =</span><br><span class="line">            intrev32ifbe(intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl))+reqlen);</span><br><span class="line"></span><br><span class="line">        tail = zipEntry(p+reqlen);</span><br><span class="line">        <span class="comment">// 同样，如果p节点不是尾节点，尾节点的偏移量还需要加上nextdiff值</span></span><br><span class="line">        <span class="keyword">if</span> (p[reqlen+tail.headersize+tail.len] != ZIP_END) &#123;</span><br><span class="line">            ZIPLIST_TAIL_OFFSET(zl) =</span><br><span class="line">                intrev32ifbe(intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl))+nextdiff);</span><br><span class="line">        &#125;</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">// 如果p节点指向zlend，更新zltail值，待添加节点为尾部节点</span></span><br><span class="line">        ZIPLIST_TAIL_OFFSET(zl) = intrev32ifbe(p-zl);</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line">    <span class="comment">// 同样，如果nextdiff的值不为0，说明原节点（此时的首地址为p+reqlen）的长度发生改变，需要执行级联更新操作</span></span><br><span class="line">    <span class="keyword">if</span> (nextdiff != <span class="number">0</span>) &#123;</span><br><span class="line">        offset = p-zl;</span><br><span class="line">        <span class="comment">//这里可能造成连锁更新</span></span><br><span class="line">        zl = __ziplistCascadeUpdate(zl,p+reqlen);</span><br><span class="line">        p = zl+offset;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 下面才是真正执行插入操作</span></span><br><span class="line">    <span class="comment">/* Write the entry */</span></span><br><span class="line">    <span class="comment">// 填写上一节点的长度</span></span><br><span class="line">    p += zipPrevEncodeLength(p,prevlen);</span><br><span class="line">    <span class="comment">// 填写当前节点的长度</span></span><br><span class="line">    p += zipEncodeLength(p,encoding,slen);</span><br><span class="line">    <span class="comment">// 根据编码方式执行相应的插入操作</span></span><br><span class="line">    <span class="keyword">if</span> (ZIP_IS_STR(encoding)) &#123;</span><br><span class="line">        <span class="built_in">memcpy</span>(p,s,slen);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        zipSaveInteger(p,value,encoding);</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">// 长度加1</span></span><br><span class="line">    ZIPLIST_INCR_LENGTH(zl,<span class="number">1</span>);</span><br><span class="line">    <span class="keyword">return</span> zl;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>估算内存</strong><br>curlen表示当前ziplist的占用字节数,curlen初始值11，保存”fieldkey”后变为21，保存”abcdefghijklmn”变成38，估计一个节点占用<strong>27字节</strong>。</p>
+<p><strong>注意：</strong>当在ziplist头部执行增加或删除操作时，如果节点长度过长（超过255），previous_entry_length要使用5个字节保存，这时会执行__ziplistCascadeUpdate()函数，可能触发连锁更新，最坏情况要更新每一个后继节点（previous_entry_length从一个字节变成5个字节后，所有节点长度都超过了255）。</p>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p><strong>ziplist的优点</strong><br>内存占用少 容易被加载到CPU缓存<br>结构紧凑 减少内存碎片</p>
+<p><strong>ziplist的缺点</strong><br>连锁更新（头部插入 或 删除，对头部的操作主要是在用ziplist保存list类型对象时发送，保存hash对象不需要在头部更新。）<br>查询复杂度从O（1）变成O（N）（保存hash对象时）</p>
+<p>参考：<br><a href="http://blog.csdn.net/xiejingfa/article/details/51072326" target="_blank" rel="noopener">Redis内置数据结构之压缩列表ziplist</a><br><a href="http://blog.csdn.net/Rongbo_J/article/details/45288223" target="_blank" rel="noopener">vs2012调试redis</a><br><a href="http://www.duokan.com/book/53962" target="_blank" rel="noopener">《redis设计与实现》</a></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/redis/" rel="tag"># redis</a>
+          
+            <a href="/tags/nosql/" rel="tag"># nosql</a>
+          
+            <a href="/tags/源码/" rel="tag"># 源码</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2017/08/26/jenkins on kubernetes实践/" rel="next" title="jenkins on kubernetes实践">
+                <i class="fa fa-chevron-left"></i> jenkins on kubernetes实践
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2017/10/22/图解redis主从/" rel="prev" title="图解redis主从">
+                图解redis主从 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">16</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#一-使用ziplist真的能节省内存吗？"><span class="nav-number">1.</span> <span class="nav-text">一.使用ziplist真的能节省内存吗？</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#使用hashtable保存："><span class="nav-number">1.1.</span> <span class="nav-text">使用hashtable保存：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用ziplist保存"><span class="nav-number">1.2.</span> <span class="nav-text">使用ziplist保存:</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#二-ziplist为什么能节省内存？"><span class="nav-number">2.</span> <span class="nav-text">二.ziplist为什么能节省内存？</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#1-hashtable结构："><span class="nav-number">2.1.</span> <span class="nav-text">1.hashtable结构：</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#2-ziplist结构："><span class="nav-number">2.2.</span> <span class="nav-text">2.ziplist结构：</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#三，调试源码"><span class="nav-number">3.</span> <span class="nav-text">三，调试源码</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#调试hashtable保存hash对象"><span class="nav-number">3.1.</span> <span class="nav-text">调试hashtable保存hash对象</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#调试ziplist保存hash对象"><span class="nav-number">3.2.</span> <span class="nav-text">调试ziplist保存hash对象</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
