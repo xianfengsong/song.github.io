@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="异步客户端简介异步客户端使用java nio实现，和许多NIO的例子相同，启动一个线程执行select()操作，然后把获得的SocketChannel交给统一的handler处理。异步客户端初始化并发起请求的调用栈如下：12345678910111213141516171819202122//初始化HelloServiceClient.main()= TAsyncClientManager.TAs">
+<meta name="keywords" content="thrift,rpc框架">
+<meta property="og:type" content="article">
+<meta property="og:title" content="thrift源码（二）异步客户端">
+<meta property="og:url" content="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="异步客户端简介异步客户端使用java nio实现，和许多NIO的例子相同，启动一个线程执行select()操作，然后把获得的SocketChannel交给统一的handler处理。异步客户端初始化并发起请求的调用栈如下：12345678910111213141516171819202122//初始化HelloServiceClient.main()= TAsyncClientManager.TAs">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/client-init.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/thrift-client-call.png">
+<meta property="og:updated_time" content="2019-08-15T14:51:42.119Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="thrift源码（二）异步客户端">
+<meta name="twitter:description" content="异步客户端简介异步客户端使用java nio实现，和许多NIO的例子相同，启动一个线程执行select()操作，然后把获得的SocketChannel交给统一的handler处理。异步客户端初始化并发起请求的调用栈如下：12345678910111213141516171819202122//初始化HelloServiceClient.main()= TAsyncClientManager.TAs">
+<meta name="twitter:image" content="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/client-init.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>thrift源码（二）异步客户端 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2019/08/05/thrift源码（二）异步客户端/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">thrift源码（二）异步客户端
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-08-05 23:28:22" itemprop="dateCreated datePublished" datetime="2019-08-05T23:28:22+08:00">2019-08-05</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2019-08-15 22:51:42" itemprop="dateModified" datetime="2019-08-15T22:51:42+08:00">2019-08-15</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/thrift源码/" itemprop="url" rel="index"><span itemprop="name">thrift源码</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h2 id="异步客户端简介"><a href="#异步客户端简介" class="headerlink" title="异步客户端简介"></a>异步客户端简介</h2><p>异步客户端使用java nio实现，和许多NIO的例子相同，启动一个线程执行select()操作，然后把获得的SocketChannel交给统一的handler处理。<br>异步客户端初始化并发起请求的调用栈如下：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line">//初始化</span><br><span class="line">HelloServiceClient.main()</span><br><span class="line">= TAsyncClientManager.TAsyncClientManager()</span><br><span class="line"></span><br><span class="line">= = TAsyncClientManager.SelectThread.run()</span><br><span class="line">= = TAsyncClientManager.SelectThread.transitionMethods()</span><br><span class="line">= = = TAsyncMethodCall.transition()</span><br><span class="line">= = TAsyncClientManager.SelectThread.timeoutIdleMethods()</span><br><span class="line">= = TAsyncClientManager.SelectThread.startPendingMethods()</span><br><span class="line">= = = TAsyncMethodCall.start()</span><br><span class="line">//发起调用</span><br><span class="line">= HelloService.AsyncClient.helloVoid()</span><br><span class="line">= = TAsyncClientManager.call()</span><br><span class="line">= = = TAsyncMethodCall.prepareMethodCall()</span><br><span class="line">= = = = HelloService.AsyncClient.helloVoid_call.write_args()</span><br><span class="line">= = = TAsyncClientManager.SelectThread.getSelector().wakeup()</span><br><span class="line">= = = TAsyncMethodCall.start()</span><br><span class="line">= = = TAsyncMethodCall#registerForFirstWrite</span><br><span class="line">= = = TAsyncMethodCall#doWritingRequestSize</span><br><span class="line">= = = TAsyncMethodCall#doWritingRequestBody</span><br><span class="line">= = = TAsyncMethodCall#doReadingResponseSize</span><br><span class="line">= = = TAsyncMethodCall#doReadingResponseBody</span><br></pre></td></tr></table></figure></p>
+<a id="more"></a>
+<h2 id="主要组件"><a href="#主要组件" class="headerlink" title="主要组件"></a>主要组件</h2><h3 id="TAsyncClientManager"><a href="#TAsyncClientManager" class="headerlink" title="TAsyncClientManager"></a>TAsyncClientManager</h3><p>管理方法调用，请求的IO状态过渡,超时管理等，持有一个Selector线程<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//selector线程</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> SelectThread selectThread;</span><br><span class="line"><span class="comment">//保存请求的队列</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> ConcurrentLinkedQueue&lt;TAsyncMethodCall&gt; pendingCalls = <span class="keyword">new</span> ConcurrentLinkedQueue&lt;TAsyncMethodCall&gt;();</span><br><span class="line"></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="title">TAsyncClientManager</span><span class="params">()</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">  <span class="keyword">this</span>.selectThread = <span class="keyword">new</span> SelectThread();</span><br><span class="line">  selectThread.start();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="SelectThread"><a href="#SelectThread" class="headerlink" title="SelectThread"></a>SelectThread</h3><p> SelectThread是TAsyncClientManager的内部类，继承了Thread,使用了java提供的nio包的selector</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">SelectThread</span> <span class="keyword">extends</span> <span class="title">Thread</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Selector waits at most SELECT_TIME milliseconds before waking</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">long</span> SELECT_TIME = <span class="number">5</span>;</span><br><span class="line">    </span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Selector selector;</span><br><span class="line">    <span class="comment">// 线程共享的变量</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">volatile</span> <span class="keyword">boolean</span> running;</span><br><span class="line">    <span class="comment">// 用来管理超时</span></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> Set&lt;TAsyncMethodCall&gt; timeoutWatchSet = <span class="keyword">new</span> HashSet&lt;TAsyncMethodCall&gt;();</span><br><span class="line">    <span class="comment">//核心方法，调用select监听IO事件，然后依次执行处理方法</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">while</span> (running) &#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          <span class="keyword">try</span> &#123;</span><br><span class="line">            selector.select(SELECT_TIME);</span><br><span class="line">          &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">            LOGGER.error(<span class="string">"Caught IOException in TAsyncClientManager!"</span>, e);</span><br><span class="line">          &#125;</span><br><span class="line">          <span class="comment">//触发TAsyncMethodCall状态机的状态变化，状态机会按照状态执行操作</span></span><br><span class="line">          transitionMethods();</span><br><span class="line">          <span class="comment">//遍历timeoutWatchSet中的请求，让超时调用返回异常</span></span><br><span class="line">          timeoutIdleMethods();</span><br><span class="line">          <span class="comment">//从pendingCalls队列中取出全部的新请求并处理</span></span><br><span class="line">          startPendingMethods();</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Throwable throwable) &#123;</span><br><span class="line">          LOGGER.error(<span class="string">"Ignoring uncaught exception in SelectThread"</span>, throwable);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure>
+<h4 id="startPendingMethods"><a href="#startPendingMethods" class="headerlink" title="startPendingMethods()"></a>startPendingMethods()</h4><p>从pendingCalls队列中取出全部的新请求并处理：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Start any new calls</span></span><br><span class="line">    <span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">startPendingMethods</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      TAsyncMethodCall methodCall;</span><br><span class="line">      <span class="keyword">while</span> ((methodCall = pendingCalls.poll()) != <span class="keyword">null</span>) &#123;</span><br><span class="line">        </span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">          methodCall.start(selector);</span><br><span class="line"></span><br><span class="line">          <span class="comment">// If timeout specified and first transition went smoothly, add to timeout watch set</span></span><br><span class="line">          TAsyncClient client = methodCall.getClient();</span><br><span class="line">          <span class="keyword">if</span> (client.hasTimeout() &amp;&amp; !client.hasError()) &#123;</span><br><span class="line">            <span class="comment">//放入超时检查set</span></span><br><span class="line">            timeoutWatchSet.add(methodCall);</span><br><span class="line">          &#125;</span><br><span class="line">        &#125; <span class="keyword">catch</span> (Throwable e) &#123;</span><br><span class="line">          LOGGER.warn(<span class="string">"Caught throwable in TAsyncClientManager!"</span>, e);</span><br><span class="line">          methodCall.onError(e);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<h4 id="timeoutIdleMethods"><a href="#timeoutIdleMethods" class="headerlink" title="timeoutIdleMethods()"></a>timeoutIdleMethods()</h4><p>遍历timeoutWatchSet，检查超时的调用：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Set&lt;TAsyncMethodCall&gt; timeoutWatchSet = <span class="keyword">new</span> HashSet&lt;TAsyncMethodCall&gt;();</span><br><span class="line"><span class="comment">// Timeout any existing method calls                                                </span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">timeoutIdleMethods</span><span class="params">()</span> </span>&#123;                                                     </span><br><span class="line">  Iterator&lt;TAsyncMethodCall&gt; iterator = timeoutWatchSet.iterator();                     </span><br><span class="line">  <span class="keyword">while</span> (iterator.hasNext()) &#123;                                                          </span><br><span class="line">    TAsyncMethodCall methodCall = iterator.next();                                      </span><br><span class="line">    <span class="keyword">long</span> clientTimeout = methodCall.getClient().getTimeout();                           </span><br><span class="line">    <span class="keyword">long</span> timeElapsed = System.currentTimeMillis() - methodCall.getLastTransitionTime(); </span><br><span class="line">                                                                                        </span><br><span class="line">    <span class="keyword">if</span> (timeElapsed &gt; clientTimeout) &#123;                                                  </span><br><span class="line">      iterator.remove();                                                                </span><br><span class="line">      methodCall.onError(<span class="keyword">new</span> TimeoutException(<span class="string">"Operation "</span> +                            </span><br><span class="line">          methodCall.getClass() + <span class="string">" timed out after "</span> + timeElapsed +                   </span><br><span class="line">          <span class="string">" milliseconds."</span>));                                                           </span><br><span class="line">    &#125;                                                                                   </span><br><span class="line">  &#125;                                                                                     </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<h3 id="TAsyncMethodCall"><a href="#TAsyncMethodCall" class="headerlink" title="TAsyncMethodCall"></a>TAsyncMethodCall</h3><p>抽象类，代表远程方法的异步调用，thrift生成的helloString_call的父类，持有callback调用，负责建立socket连接，写入TNonblockingTransport、构造ByteBuffer等，<strong>对IO操作的切换通过状态机来完成</strong>,重点关注transition()方法。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br><span class="line">52</span><br><span class="line">53</span><br><span class="line">54</span><br><span class="line">55</span><br><span class="line">56</span><br><span class="line">57</span><br><span class="line">58</span><br><span class="line">59</span><br><span class="line">60</span><br><span class="line">61</span><br><span class="line">62</span><br><span class="line">63</span><br><span class="line">64</span><br><span class="line">65</span><br><span class="line">66</span><br><span class="line">67</span><br><span class="line">68</span><br><span class="line">69</span><br><span class="line">70</span><br><span class="line">71</span><br><span class="line">72</span><br><span class="line">73</span><br><span class="line">74</span><br><span class="line">75</span><br><span class="line">76</span><br><span class="line">77</span><br><span class="line">78</span><br><span class="line">79</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="keyword">abstract</span> <span class="class"><span class="keyword">class</span> <span class="title">TAsyncMethodCall</span>&lt;<span class="title">T</span> <span class="keyword">extends</span> <span class="title">TAsyncMethodCall</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> INITIAL_MEMORY_BUFFER_SIZE = <span class="number">128</span>;</span><br><span class="line">  <span class="comment">//内部的状态机，一共7个状态</span></span><br><span class="line">  <span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">enum</span> State &#123;</span><br><span class="line">    CONNECTING,</span><br><span class="line">    WRITING_REQUEST_SIZE,</span><br><span class="line">    WRITING_REQUEST_BODY,</span><br><span class="line">    READING_RESPONSE_SIZE,</span><br><span class="line">    READING_RESPONSE_BODY,</span><br><span class="line">    RESPONSE_READ,</span><br><span class="line">    ERROR;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">//Transport socket连接的封装</span></span><br><span class="line">  <span class="keyword">protected</span> <span class="keyword">final</span> TNonblockingTransport transport;</span><br><span class="line">  <span class="comment">//负责序列化</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> TProtocolFactory protocolFactory;</span><br><span class="line">  <span class="comment">//rpc client</span></span><br><span class="line">  <span class="keyword">protected</span> <span class="keyword">final</span> TAsyncClient client;</span><br><span class="line">  <span class="comment">//回调方法</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> AsyncMethodCallback&lt;T&gt; callback;</span><br><span class="line">  <span class="comment">//isOneway==true则不用回调</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">boolean</span> isOneway;</span><br><span class="line">  <span class="comment">//方法调用到达这个状态的时间，用来判断超时</span></span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">long</span> lastTransitionTime;</span><br><span class="line">  <span class="comment">//保存数据包的内容size</span></span><br><span class="line">  <span class="keyword">private</span> ByteBuffer sizeBuffer;</span><br><span class="line">  <span class="keyword">private</span> <span class="keyword">final</span> <span class="keyword">byte</span>[] sizeBufferArray = <span class="keyword">new</span> <span class="keyword">byte</span>[<span class="number">4</span>];</span><br><span class="line">  <span class="comment">//保存数据包内容</span></span><br><span class="line">  <span class="keyword">private</span> ByteBuffer frameBuffer;</span><br><span class="line"> </span><br><span class="line">  <span class="function"><span class="keyword">protected</span> <span class="title">TAsyncMethodCall</span><span class="params">(TAsyncClient client, TProtocolFactory protocolFactory, TNonblockingTransport transport, AsyncMethodCallback&lt;T&gt; callback, <span class="keyword">boolean</span> isOneway)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">this</span>.transport = transport;</span><br><span class="line">    <span class="keyword">this</span>.callback = callback;</span><br><span class="line">    <span class="keyword">this</span>.protocolFactory = protocolFactory;</span><br><span class="line">    <span class="keyword">this</span>.client = client;</span><br><span class="line">    <span class="keyword">this</span>.isOneway = isOneway;</span><br><span class="line">    <span class="keyword">this</span>.lastTransitionTime = System.currentTimeMillis();</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="comment">//Transition方法，根据状态机状态执行对应的操作。</span></span><br><span class="line">  <span class="comment">//这个方法是线程安全的，因为只在SelectThread内部执行</span></span><br><span class="line">  <span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">transition</span><span class="params">(SelectionKey key)</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Ensure key is valid</span></span><br><span class="line">    <span class="keyword">if</span> (!key.isValid()) &#123;</span><br><span class="line">      key.cancel();</span><br><span class="line">      Exception e = <span class="keyword">new</span> TTransportException(<span class="string">"Selection key not valid!"</span>);</span><br><span class="line">      onError(e);</span><br><span class="line">      <span class="keyword">return</span>;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Transition function</span></span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      <span class="keyword">switch</span> (state) &#123;</span><br><span class="line">        <span class="keyword">case</span> CONNECTING:</span><br><span class="line">          doConnecting(key);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> WRITING_REQUEST_SIZE:</span><br><span class="line">          doWritingRequestSize();</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> WRITING_REQUEST_BODY:</span><br><span class="line">          doWritingRequestBody(key);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> READING_RESPONSE_SIZE:</span><br><span class="line">          doReadingResponseSize();</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">case</span> READING_RESPONSE_BODY:</span><br><span class="line">          doReadingResponseBody(key);</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        <span class="keyword">default</span>: <span class="comment">// RESPONSE_READ, ERROR, or bug</span></span><br><span class="line">          <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Method call in state "</span> + state</span><br><span class="line">              + <span class="string">" but selector called transition method. Seems like a bug..."</span>);</span><br><span class="line">      &#125;</span><br><span class="line">      lastTransitionTime = System.currentTimeMillis();</span><br><span class="line">    &#125; <span class="keyword">catch</span> (Throwable e) &#123;</span><br><span class="line">      key.cancel();</span><br><span class="line">      key.attach(<span class="keyword">null</span>);</span><br><span class="line">      onError(e);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<h4 id="start"><a href="#start" class="headerlink" title="start()"></a>start()</h4><p>在TAsyncMethodCall的start()方法中<strong>有一个优化处理</strong>，当socket连接未建立时，会向selector注册连接事件的监听。但是<strong>因为非阻塞socket的CONNECT操作可以立刻完成(不会一直阻塞，当连接不能立即完成时，connect返回EINPROGRESS，之后select会再判断描述符是否可写)</strong>，所以添加了对startConnect()返回值的检查，如果return true那么就去注册读事件。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">void</span> <span class="title">start</span><span class="params">(Selector sel)</span> <span class="keyword">throws</span> IOException </span>&#123;</span><br><span class="line">    SelectionKey key;</span><br><span class="line">    <span class="keyword">if</span> (transport.isOpen()) &#123;</span><br><span class="line">      state = State.WRITING_REQUEST_SIZE;</span><br><span class="line">      key = transport.registerSelector(sel, SelectionKey.OP_WRITE);</span><br><span class="line">    &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">      state = State.CONNECTING;</span><br><span class="line">      key = transport.registerSelector(sel, SelectionKey.OP_CONNECT);</span><br><span class="line"></span><br><span class="line">      <span class="comment">// non-blocking connect can complete immediately,</span></span><br><span class="line">      <span class="comment">// in which case we should not expect the OP_CONNECT</span></span><br><span class="line">      <span class="keyword">if</span> (transport.startConnect()) &#123;</span><br><span class="line">        registerForFirstWrite(key);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    key.attach(<span class="keyword">this</span>);</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure></p>
+<h2 id="初始化的时序图"><a href="#初始化的时序图" class="headerlink" title="初始化的时序图"></a>初始化的时序图</h2><img src="/2019/08/05/thrift源码（二）异步客户端/client-init.png" title="image">
+<p>如图所示，首先HelloServiceClient创建TAsyncClientManger实例，然后SelectThread对象初始化，创建守护线程并启动。<br>线程启动之后，执行SelectThread.run()方法的循环，selector开始监听I/O事件。<br>select()执行后，依次执行transitionMethods();timeoutIdleMethods();startPendingMethods();，这些方法分别会调用TAsyncMethodCall的transition(),onError(),start()方法。<br>最右侧是TAsyncMethodCall中State状态机的状态图。当过渡到RESPONSE_READ状态后，本次调用的I/O操作完成。</p>
+<h2 id="执行异步调用的时序图"><a href="#执行异步调用的时序图" class="headerlink" title="执行异步调用的时序图"></a>执行异步调用的时序图</h2><p>下面是异步客户端初始化并发起异步调用的代码，为了不让程序立即退出最后增加了sleep()方法。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line">TAsyncClientManager clientManager = <span class="keyword">new</span> TAsyncClientManager();</span><br><span class="line">TNonblockingTransport transport = <span class="keyword">new</span> TNonblockingSocket(<span class="string">"localhost"</span>, <span class="number">7911</span>);</span><br><span class="line">TProtocolFactory protocol = <span class="keyword">new</span> TBinaryProtocol.Factory();</span><br><span class="line">HelloService.AsyncClient asyncClient = <span class="keyword">new</span> HelloService.AsyncClient(protocol, clientManager, transport);</span><br><span class="line">asyncClient.setTimeout(<span class="number">1500L</span>);</span><br><span class="line">System.out.println(<span class="string">"client async calls"</span>);</span><br><span class="line">HelloStringCallback callback = <span class="keyword">new</span> HelloStringCallback();</span><br><span class="line">asyncClient.helloString(<span class="string">"baba"</span>, callback);</span><br><span class="line"><span class="comment">//等待触发回调</span></span><br><span class="line">Thread.sleep(<span class="number">10000L</span>);</span><br></pre></td></tr></table></figure></p>
+<p>处理异步调用结果的回调类HelloStringCallback代码如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">HelloStringCallback</span> <span class="keyword">implements</span> <span class="title">AsyncMethodCallback</span>&lt;<span class="title">helloString_call</span>&gt; </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> String response = <span class="keyword">null</span>;</span><br><span class="line"></span><br><span class="line">    HelloStringCallback() &#123;</span><br><span class="line">        <span class="keyword">super</span>();</span><br><span class="line">        System.out.println(<span class="string">"init Thread ID="</span> + Thread.currentThread().getId());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onComplete</span><span class="params">(helloString_call response)</span> </span>&#123;</span><br><span class="line">        <span class="keyword">try</span> &#123;</span><br><span class="line">            System.out.println(<span class="string">"onComplete Thread ID="</span> + Thread.currentThread().getId());</span><br><span class="line">            <span class="comment">//调用helloString_call的getResult方法</span></span><br><span class="line">            System.out.println(<span class="string">"msg:"</span> + response.getResult());</span><br><span class="line">        &#125; <span class="keyword">catch</span> (TException e) &#123;</span><br><span class="line">            e.printStackTrace();</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="meta">@Override</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">onError</span><span class="params">(Throwable throwable)</span> </span>&#123;</span><br><span class="line">        System.out.println(<span class="string">"onError:"</span>);</span><br><span class="line">        throwable.printStackTrace();</span><br><span class="line">    &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>下面的时序图展示了客户端调用异步方法时，thrift内部组件的工作流程。</p>
+<p><strong>步骤1～3</strong> 首先使用thrift为HelloService生成的AsyncClient对象，<strong>checkReady()</strong> 检查当前是否正在执行HelloService的方法，<strong>一个时刻同一个Service只能执行一个方法</strong>，然后创建thrift生成的helloString_call对象(TAsyncMethodCall的子类)，最后调用TAsyncClientManager.call(TAsyncMethodCall method)。</p>
+<p><strong>步骤3.1~3.1.4</strong> TAsyncClientManager创建一个临时TProtocol对象，调用helloString_call的write_args方法，得到这次调用的方法名，参数等信息的序列化内容填充到frameBuffer中，然后根据序列化内容长度初始化sizeBuffer。</p>
+<p><strong>步骤3.2~3.3.2</strong> SelectThread重新执行select(),并调用TAsyncMethodCall.start()方法，将这次调用的socket连接注册到selector上，图中灰色框是SelectThread线程的内部循环，橙色框是对套接字transport是否建立连接的判断(<strong>实际上SelectThread和TAsyncClientManager不在一个线程内工作</strong>，这里只是描述大概的执行顺序，SelectThread的内部细节在上面的初始化时序图中)</p>
+<p><strong>步骤3.4~3.4.6.2</strong> SelectThread调用TAsyncMethodCall.transition()方法，TAsyncMethodCall根据状态机的状态执行操作，这里展示一次调用的正常顺序(没有包含异常的情况)。</p>
+<p>3.4.1~3.4.5是建立连接，发送请求包size,请求包内容，接收响应包size，响应包内容 <strong>(注意除了size相关的方法，都需要SelectionKey做参数，因为这次操作需要修改selector上注册的事件)</strong>。</p>
+<p>3.4.6 当响应接收完成，执行cleanUpAndFireCallback()方法，先是调用HelloService.AsyncClient的onComplete()方法，让它能去处理下一个HelloService的异步调用，然后调用我们定义的回调函数HelloStringCallback.onComplete(helloString_call response)方法(这也是在SelectThread内完成的)。</p>
+<img src="/2019/08/05/thrift源码（二）异步客户端/thrift-client-call.png" title="image">
+<p><strong>在调用中selector上注册事件的变化</strong></p>
+<p>向selector注册事件的顺序全部由TAsyncMethodCall来完成，左侧是注册的事件，右侧会注册这个事件的函数：<br>当通信完成注册0清空事件<br>|事件| 状态机 | 函数 |<br>| — |—|— |<br>|OP_CONNECT |State.CONNECTING  |  start() |<br>|OP_WRITE|State.WRITING_REQUEST_SIZE或State.CONNECTING|start()或doConnecting()|<br>|OP_READ|State.READING_RESPONSE_SIZE|doWritingRequestBody()|<br>|0|State.RESPONSE_READ|cleanUpAndFireCallback()|</p>
+<h4 id="对比同步客户端"><a href="#对比同步客户端" class="headerlink" title="对比同步客户端"></a>对比同步客户端</h4><p><strong>同步客户端的使用方式</strong></p>
+<p>对于同一个Service,同一时间只能执行一个Service中的方法。需要开发者确保Client不会被多个线程调用，因为同步客户端的<strong>Client对象不是线程安全的。一般都会创建Client的对象池，每次调用从对象池中获得一个Client</strong>。<br>每次发起调用seqid都会+1，然后在调用完成后检查收到的seqid和发起时一致。</p>
+<p><strong>异步客户端内的使用方式</strong></p>
+<p><strong>必须使用非阻塞服务端</strong>,在我的测试中，使用同步的服务端&amp;异步客户端会遇到readMessageBegin()操作阻塞的问题。<br>在执行<code>int size = readI32();</code>时，同步服务端获得size是<strong>整个请求包的size</strong>,并不是TMessage第一个构造参数name的size,所以readStringBody会读取整个请求包，之后的readByte()和readI32()已经没有数据可读，就会阻塞（<strong>到底为什么呢</strong>）。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> TMessage <span class="title">readMessageBegin</span><span class="params">()</span> <span class="keyword">throws</span> TException </span>&#123;</span><br><span class="line">        <span class="keyword">int</span> size = readI32();</span><br><span class="line">        <span class="keyword">if</span> (size &lt; <span class="number">0</span>) &#123;</span><br><span class="line">            <span class="keyword">int</span> version = size &amp; VERSION_MASK;</span><br><span class="line">            <span class="keyword">if</span> (version != VERSION_1) &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> TProtocolException(TProtocolException.BAD_VERSION, <span class="string">"Bad version in readMessageBegin"</span>);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> TMessage(readString(), (<span class="keyword">byte</span>) (size &amp; <span class="number">0x000000ff</span>), readI32());</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        <span class="comment">//使用同步服务端时，执行这部分阻塞</span></span><br><span class="line">            <span class="keyword">if</span> (strictRead_) &#123;</span><br><span class="line">                <span class="keyword">throw</span> <span class="keyword">new</span> TProtocolException(TProtocolException.BAD_VERSION, <span class="string">"Missing version in readMessageBegin, old client?"</span>);</span><br><span class="line">            &#125;</span><br><span class="line">            <span class="keyword">return</span> <span class="keyword">new</span> TMessage(readStringBody(size), readByte(), readI32());</span><br><span class="line">        &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>AsyncClient也不是线程安全的，甚至<strong>即使同一个线程在一个循环中多次调用一个方法</strong>也会出现异常，比如：<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line">for(int i=3;i&gt;0;i--) &#123;</span><br><span class="line">    HelloStringCallback callback = new HelloStringCallback();</span><br><span class="line">    asyncClient.helloString(&quot;baba&quot;, callback);</span><br><span class="line">&#125;</span><br><span class="line">//等待触发回调</span><br><span class="line">Thread.sleep(1000L);</span><br></pre></td></tr></table></figure></p>
+<p>会触发异常：<br>java.nio.channels.ConnectionPendingException//连接正在进行<br>java.nio.channels.ClosedChannelException//连接已关闭</p>
+<p>在上面的例子中，因为没有等上次调用返回就发起了新的调用，每次调用使用的socket连接相同，因此对socket连接的操作产生了冲突，实际上<strong>checkReady()并没有起到作用</strong>，在这个版本的源码中TAsyncClient.<strong>currentMethod字段一直是null</strong>。所以使用异步客户端时<strong>发起一次调用就需要创建一个AsyncClient</strong>，使用新的socket，一般是使用Client的对象池。<br>没卵用的checkReady():<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">checkReady</span><span class="params">()</span> </span>&#123;</span><br><span class="line">    <span class="comment">// Ensure we are not currently executing a method</span></span><br><span class="line">    <span class="keyword">if</span> (currentMethod != <span class="keyword">null</span>) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Client is currently executing another method: "</span> + currentMethod.getClass().getName());</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// Ensure we're not in an error state</span></span><br><span class="line">    <span class="keyword">if</span> (error != <span class="keyword">null</span>) &#123;</span><br><span class="line">      <span class="keyword">throw</span> <span class="keyword">new</span> IllegalStateException(<span class="string">"Client has an error!"</span>, error);</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p><strong>seqid在异步调用中没有变化</strong>，一直是0：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">prot.writeMessageBegin(<span class="keyword">new</span> TMessage(<span class="string">"helloString"</span>, TMessageType.CALL, <span class="number">0</span>));</span><br></pre></td></tr></table></figure></p>
+<p>在同步客户端中，seqid会自增：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><span class="line">oprot_.writeMessageBegin(<span class="keyword">new</span> TMessage(<span class="string">"helloString"</span>, TMessageType.CALL, ++seqid_));</span><br></pre></td></tr></table></figure></p>
+<p><strong>在接收调用结果时和同步客户端一样:</strong><br>在helloString_call(extends TAsyncMethodCall)中可以看到getResult方法使用了同步客户端(创新了一个同步客户端实例，new Client(prot))的recv_helloString方法。<br><figure class="highlight plain"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">public String getResult() throws TException &#123;</span><br><span class="line">                if (getState() != State.RESPONSE_READ) &#123;</span><br><span class="line">                    throw new IllegalStateException(&quot;Method call not finished!&quot;);</span><br><span class="line">                &#125;</span><br><span class="line">                TMemoryInputTransport memoryTransport = new TMemoryInputTransport(getFrameBuffer().array());</span><br><span class="line">                TProtocol prot = client.getProtocolFactory().getProtocol(memoryTransport);</span><br><span class="line">                return (new Client(prot)).recv_helloString();</span><br><span class="line">            &#125;</span><br></pre></td></tr></table></figure></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/thrift/" rel="tag"># thrift</a>
+          
+            <a href="/tags/rpc框架/" rel="tag"># rpc框架</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/05/22/thrift源码-客户端/" rel="next" title="thrift源码（一）源码结构和客户端介绍">
+                <i class="fa fa-chevron-left"></i> thrift源码（一）源码结构和客户端介绍
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">17</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#异步客户端简介"><span class="nav-number">1.</span> <span class="nav-text">异步客户端简介</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#主要组件"><span class="nav-number">2.</span> <span class="nav-text">主要组件</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#TAsyncClientManager"><span class="nav-number">2.1.</span> <span class="nav-text">TAsyncClientManager</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#SelectThread"><span class="nav-number">2.2.</span> <span class="nav-text">SelectThread</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#startPendingMethods"><span class="nav-number">2.2.1.</span> <span class="nav-text">startPendingMethods()</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#timeoutIdleMethods"><span class="nav-number">2.2.2.</span> <span class="nav-text">timeoutIdleMethods()</span></a></li></ol></li><li class="nav-item nav-level-3"><a class="nav-link" href="#TAsyncMethodCall"><span class="nav-number">2.3.</span> <span class="nav-text">TAsyncMethodCall</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#start"><span class="nav-number">2.3.1.</span> <span class="nav-text">start()</span></a></li></ol></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#初始化的时序图"><span class="nav-number">3.</span> <span class="nav-text">初始化的时序图</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#执行异步调用的时序图"><span class="nav-number">4.</span> <span class="nav-text">执行异步调用的时序图</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#对比同步客户端"><span class="nav-number">4.0.1.</span> <span class="nav-text">对比同步客户端</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
