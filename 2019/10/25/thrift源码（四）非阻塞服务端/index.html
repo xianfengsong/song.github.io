@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="非阻塞服务端TNonblockingServerthrift的非阻塞服务端，采用还是类似Reactor的IO复用模型 对于TNonblockingServer，使用的是单线程的reactor模式，客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。">
+<meta name="keywords" content="thrift,rpc框架">
+<meta property="og:type" content="article">
+<meta property="og:title" content="thrift源码（四）非阻塞服务端">
+<meta property="og:url" content="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="非阻塞服务端TNonblockingServerthrift的非阻塞服务端，采用还是类似Reactor的IO复用模型 对于TNonblockingServer，使用的是单线程的reactor模式，客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://upload-images.jianshu.io/upload_images/1452123-35a5505c0d9928f7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240">
+<meta property="og:image" content="http://upload-images.jianshu.io/upload_images/1452123-bfb7ef28b21ba29e?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240">
+<meta property="og:image" content="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/SelectThread.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/FrameBuffer.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/FrameBufferState.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/serverflow.png">
+<meta property="og:updated_time" content="2019-10-24T16:48:54.283Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="thrift源码（四）非阻塞服务端">
+<meta name="twitter:description" content="非阻塞服务端TNonblockingServerthrift的非阻塞服务端，采用还是类似Reactor的IO复用模型 对于TNonblockingServer，使用的是单线程的reactor模式，客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。">
+<meta name="twitter:image" content="http://upload-images.jianshu.io/upload_images/1452123-35a5505c0d9928f7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>thrift源码（四）非阻塞服务端 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2019/10/25/thrift源码（四）非阻塞服务端/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">thrift源码（四）非阻塞服务端
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-10-25 00:12:07 / 修改时间：00:48:54" itemprop="dateCreated datePublished" datetime="2019-10-25T00:12:07+08:00">2019-10-25</time>
+            
+
+            
+              
+
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/thrift源码/" itemprop="url" rel="index"><span itemprop="name">thrift源码</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="非阻塞服务端TNonblockingServer"><a href="#非阻塞服务端TNonblockingServer" class="headerlink" title="非阻塞服务端TNonblockingServer"></a>非阻塞服务端TNonblockingServer</h3><p>thrift的非阻塞服务端，采用还是类似Reactor的IO复用模型</p>
+<p><img src="http://upload-images.jianshu.io/upload_images/1452123-35a5505c0d9928f7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="reactor uml"><br>对于TNonblockingServer，使用的是单线程的reactor模式，<br>客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。<br><a id="more"></a></p>
+<p><img src="http://upload-images.jianshu.io/upload_images/1452123-bfb7ef28b21ba29e?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="reactor single"></p>
+<h4 id="SelectThread"><a href="#SelectThread" class="headerlink" title="SelectThread"></a>SelectThread</h4><img src="/2019/10/25/thrift源码（四）非阻塞服务端/SelectThread.png" title="image">
+<p>selector工作线程，作用reactor模式中的dispatcher,分离IO事件，触发对应的handler。<br>SelectThread的run方法：<br>执行完select()，就会检查&amp;更新FrameBuffers上关注的事件：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">while</span> (!stopped_) &#123;</span><br><span class="line">          select();</span><br><span class="line">          processInterestChanges();</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (Throwable t) &#123;</span><br><span class="line">        LOGGER.error(<span class="string">"run() exiting due to uncaught error"</span>, t);</span><br><span class="line">      &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        stopped_ = <span class="keyword">true</span>;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>select方法，根据不同的IO事件，执行对应调用：<br>和上面Reactor的图片有点不同，这里没有单独的acceptor，也没有handler,都由SelectThread处理。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">select</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="comment">// wait for io events.</span></span><br><span class="line">        selector.select();</span><br><span class="line"></span><br><span class="line">        <span class="comment">// process the io events we received</span></span><br><span class="line">        Iterator&lt;SelectionKey&gt; selectedKeys = selector.selectedKeys().iterator();</span><br><span class="line">        <span class="keyword">while</span> (!stopped_ &amp;&amp; selectedKeys.hasNext()) &#123;</span><br><span class="line">          SelectionKey key = selectedKeys.next();</span><br><span class="line">          selectedKeys.remove();</span><br><span class="line"></span><br><span class="line">          <span class="comment">// skip if not valid</span></span><br><span class="line">          <span class="keyword">if</span> (!key.isValid()) &#123;</span><br><span class="line">            cleanupSelectionkey(key);</span><br><span class="line">            <span class="keyword">continue</span>;</span><br><span class="line">          &#125;</span><br><span class="line"></span><br><span class="line">          <span class="comment">// if the key is marked Accept, then it has to be the server</span></span><br><span class="line">          <span class="comment">// transport.</span></span><br><span class="line">          <span class="keyword">if</span> (key.isAcceptable()) &#123;</span><br><span class="line">            handleAccept();</span><br><span class="line">          &#125; <span class="keyword">else</span> <span class="keyword">if</span> (key.isReadable()) &#123;</span><br><span class="line">            <span class="comment">// deal with reads</span></span><br><span class="line">            handleRead(key);</span><br><span class="line">          &#125; <span class="keyword">else</span> <span class="keyword">if</span> (key.isWritable()) &#123;</span><br><span class="line">            <span class="comment">// deal with writes</span></span><br><span class="line">            handleWrite(key);</span><br><span class="line">          &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">            LOGGER.warn(<span class="string">"Unexpected state in select! "</span> + key.interestOps());</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">        LOGGER.warn(<span class="string">"Got an IOException while selecting!"</span>, e);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>SelectThread中除了serverTransport和selector还有一个属性selectInterestChanges，用来保存需要改变关注事件的FrameBuffer<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> TNonblockingServerTransport serverTransport;</span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Selector selector;</span><br><span class="line"></span><br><span class="line"><span class="comment">// List of FrameBuffers that want to change their selection interests.</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">final</span> Set&lt;FrameBuffer&gt; selectInterestChanges =</span><br><span class="line">      <span class="keyword">new</span> HashSet&lt;FrameBuffer&gt;();</span><br></pre></td></tr></table></figure></p>
+<p>为了管理这些FrameBuffer，SelectThread提供两个方法，<strong>processInterestChanges()</strong>函数遍历FrameBuffer触发他们更新关注的IO事件并注册，然后清空集合。<br><strong>requestSelectInterestChange()</strong>函数，允许向集合添加新的需要改变关注事件的FrameBuffer.<br><strong>这俩函数不是同步执行的</strong>，主要是为了多线程版本的服务端使用，同时对selectInterestChanges集合加锁，也是因为TNonblockingServer的子类(THsHaServer)，使用了多线程的reactor模型，在这里不会起作用。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">    * Check to see if there are any FrameBuffers that have switched their</span></span><br><span class="line"><span class="comment">    * interest type from read to write or vice versa.</span></span><br><span class="line"><span class="comment">*/</span></span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">processInterestChanges</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">synchronized</span> (selectInterestChanges) &#123;</span><br><span class="line">        <span class="keyword">for</span> (FrameBuffer fb : selectInterestChanges) &#123;</span><br><span class="line">          fb.changeSelectInterests();</span><br><span class="line">        &#125;</span><br><span class="line">        selectInterestChanges.clear();</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    </span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Add FrameBuffer to the list of select interest changes and wake up the</span></span><br><span class="line"><span class="comment">     * selector if it's blocked. When the select() call exits, it'll give the</span></span><br><span class="line"><span class="comment">     * FrameBuffer a chance to change its interests.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">requestSelectInterestChange</span><span class="params">(FrameBuffer frameBuffer)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">synchronized</span> (selectInterestChanges) &#123;</span><br><span class="line">        selectInterestChanges.add(frameBuffer);</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// wakeup the selector, if it's currently blocked.</span></span><br><span class="line">      selector.wakeup();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<h4 id="FrameBuffer"><a href="#FrameBuffer" class="headerlink" title="FrameBuffer"></a>FrameBuffer</h4><p><strong>看名字你会以为这是一个数据缓冲区（类似ByteBuffer），但实际上FrameBuffer做的更多，这就是thrift的神奇命名。。</strong><br><img src="/2019/10/25/thrift源码（四）非阻塞服务端/FrameBuffer.png" title="image"></p>
+<p>FrameBuffer内部是一个类似状态机的设计，ta负责数据的读写，修改selector关注事件，发起接口调用，返回结果等操作。服务端IO的具体细节都由它来完成。<br>FrameBuffer定义的状态:<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// in the midst of reading the frame size off the wire</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> READING_FRAME_SIZE = <span class="number">1</span>;</span><br><span class="line"><span class="comment">// reading the actual frame data now, but not all the way done yet</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> READING_FRAME = <span class="number">2</span>;</span><br><span class="line"><span class="comment">// completely read the frame, so an invocation can now happen</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> READ_FRAME_COMPLETE = <span class="number">3</span>;</span><br><span class="line"><span class="comment">// waiting to get switched to listening for write events</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> AWAITING_REGISTER_WRITE = <span class="number">4</span>;</span><br><span class="line"><span class="comment">// started writing response data, not fully complete yet</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> WRITING = <span class="number">6</span>;</span><br><span class="line"><span class="comment">// another thread wants this framebuffer to go back to reading</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> AWAITING_REGISTER_READ = <span class="number">7</span>;</span><br><span class="line"><span class="comment">// we want our transport and selection key invalidated in the selector thread</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> <span class="keyword">final</span> <span class="keyword">int</span> AWAITING_CLOSE = <span class="number">8</span>;</span><br></pre></td></tr></table></figure></p>
+<p>FrameBuffer状态图：<br><img src="/2019/10/25/thrift源码（四）非阻塞服务端/FrameBufferState.png" title="image"><br>状态由<strong>READING_FRAME_SIZE</strong>开始(此时bufferSize大小只有4字节)，如果buffer读取完成，变<strong>成READING_FRAME</strong>（此时buffer被初始化为frameSize大小），如果buffer又读取完成，变成<br><strong>READ_FRAME_COMPLETE</strong>状态，这时selectThread会执行requestInvoke()方法:<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">handleRead</span><span class="params">(SelectionKey key)</span> </span>&#123;</span><br><span class="line">...</span><br><span class="line"><span class="comment">// if the buffer's frame read is complete, invoke the method.</span></span><br><span class="line">      <span class="keyword">if</span> (buffer.isFrameFullyRead()) &#123;</span><br><span class="line">        <span class="keyword">if</span> (!requestInvoke(buffer)) &#123;</span><br><span class="line">          cleanupSelectionkey(key);</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">...</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
+<p>然后调用FrameBuffer的invoke方法，frameBuffer会调用服务端本地的接口实现类，执行完成后调用responseReady()准备返回调用结果，如果接口实现执行失败，状态由<strong>READ_FRAME_COMPLETE</strong>变成<strong>AWAITING_CLOSE</strong>，随后socket会被关闭。<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">invoke</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      TTransport inTrans = getInputTransport();</span><br><span class="line">      TProtocol inProt = inputProtocolFactory_.getProtocol(inTrans);</span><br><span class="line">      TProtocol outProt = outputProtocolFactory_.getProtocol(getOutputTransport());</span><br><span class="line"></span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        outProt.setServerSide(<span class="keyword">true</span>);</span><br><span class="line">        processorFactory_.getProcessor(inTrans).process(inProt, outProt);</span><br><span class="line">        responseReady();</span><br><span class="line">        <span class="keyword">return</span>;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (TException te) &#123;</span><br><span class="line">        LOGGER.warn(<span class="string">"Exception while invoking!"</span>, te);</span><br><span class="line">      &#125; <span class="keyword">catch</span> (Exception e) &#123;</span><br><span class="line">        LOGGER.error(<span class="string">"Unexpected exception while invoking!"</span>, e);</span><br><span class="line"></span><br><span class="line">      &#125; <span class="keyword">catch</span> (Throwable t) &#123;</span><br><span class="line">        LOGGER.error(<span class="string">"Unexpected throwable while invoking!"</span>, t);</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// This will only be reached when there is an exception.</span></span><br><span class="line">      state_ = AWAITING_CLOSE;</span><br><span class="line">      requestSelectInterestChange();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>responseReady方法中，状态可能由<strong>READ_FRAME_COMPLETE</strong>变成<strong>AWAITING_REGISTER_READ</strong>(不需要向客户端返回结果)，或者变成<strong>AWAITING_REGISTER_WRITE</strong>（准备发送结果到客户端）：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">responseReady</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="comment">// the read buffer is definitely no longer in use, so we will decrement</span></span><br><span class="line">      <span class="comment">// our read buffer count. we do this here as well as in close because</span></span><br><span class="line">      <span class="comment">// we'd like to free this read memory up as quickly as possible for other</span></span><br><span class="line">      <span class="comment">// clients.</span></span><br><span class="line">      readBufferBytesAllocated.addAndGet(-buffer_.array().length);</span><br><span class="line"></span><br><span class="line">      <span class="keyword">if</span> (response_.len() == <span class="number">0</span>) &#123;</span><br><span class="line">        <span class="comment">// go straight to reading again. this was probably an oneway method</span></span><br><span class="line">        state_ = AWAITING_REGISTER_READ;</span><br><span class="line">        buffer_ = <span class="keyword">null</span>;</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        buffer_ = ByteBuffer.wrap(response_.get(), <span class="number">0</span>, response_.len());</span><br><span class="line"></span><br><span class="line">        <span class="comment">// set state that we're waiting to be switched to write. we do this</span></span><br><span class="line">        <span class="comment">// asynchronously through requestSelectInterestChange() because there is a</span></span><br><span class="line">        <span class="comment">// possibility that we're not in the main thread, and thus currently</span></span><br><span class="line">        <span class="comment">// blocked in select(). (this functionality is in place for the sake of</span></span><br><span class="line">        <span class="comment">// the HsHa server.)</span></span><br><span class="line">        state_ = AWAITING_REGISTER_WRITE;</span><br><span class="line">      &#125;</span><br><span class="line">      requestSelectInterestChange();</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>如同注释所说，函数requestSelectInterestChange()告知selectThread_我要改变关注的IO事件然后就返回，是一种异步的方式，然后在函数requestSelectInterestChange中，会检查当前线程，如果就是selectThread_那就直接改变关注的IO事件，否则通过TNonblockingServer调用selectThread_执行：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">requestSelectInterestChange</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">if</span> (Thread.currentThread() == selectThread_) &#123;</span><br><span class="line">        changeSelectInterests();</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        TNonblockingServer.<span class="keyword">this</span>.requestSelectInterestChange(<span class="keyword">this</span>);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<p>在changeSelectInterests方法中，状态可能由<strong>AWAITING_REGISTER_WRITE</strong>变成<strong>WRITING</strong>，或者由<strong>AWAITING_REGISTER_READ</strong>变成<strong>READING_FRAME_SIZE</strong>，如果是<strong>AWAITING_CLOSE</strong>那么直接关闭连接，取消关注的事件：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">     * Give this FrameBuffer a chance to set its interest to write, once data</span></span><br><span class="line"><span class="comment">     * has come in.</span></span><br><span class="line"><span class="comment">     */</span></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">changeSelectInterests</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">if</span> (state_ == AWAITING_REGISTER_WRITE) &#123;</span><br><span class="line">        <span class="comment">// set the OP_WRITE interest</span></span><br><span class="line">        selectionKey_.interestOps(SelectionKey.OP_WRITE);</span><br><span class="line">        state_ = WRITING;</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (state_ == AWAITING_REGISTER_READ) &#123;</span><br><span class="line">        prepareRead();</span><br><span class="line">      &#125; <span class="keyword">else</span> <span class="keyword">if</span> (state_ == AWAITING_CLOSE)&#123;</span><br><span class="line">        close();</span><br><span class="line">        selectionKey_.cancel();</span><br><span class="line">      &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">        LOGGER.error(</span><br><span class="line">          <span class="string">"changeSelectInterest was called, but state is invalid ("</span></span><br><span class="line">          + state_ + <span class="string">")"</span>);</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br></pre></td></tr></table></figure></p>
+<h4 id="时序图"><a href="#时序图" class="headerlink" title="时序图"></a>时序图</h4><p>非阻塞服务端的初始化代码：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><span class="line">TNonblockingServerTransport serverTransport = <span class="keyword">new</span> TNonblockingServerSocket(<span class="number">7911</span>);</span><br><span class="line">                HelloService.Processor processor = <span class="keyword">new</span> HelloService.Processor(<span class="keyword">new</span> HelloServiceImpl());</span><br><span class="line">                TServer server = <span class="keyword">new</span> TNonblockingServer(processor, serverTransport);</span><br><span class="line">                server.serve();</span><br></pre></td></tr></table></figure></p>
+<p>时序图包含了异步服务端启动和响应请求的过程(不包括异常)：<br><strong>1,2,3,4</strong><br>执行Server的初始化，和上面的代码一致<br><strong>5,5.1,5.2.1</strong><br>开始准备响应客户端请求，监听端口，创建SelectThread线程并启动<br><strong>5.2.1.1 , 5.2.1.2</strong> SelectThread在构造函数中已经打开selector并注册ACCEPT事件<br><strong>5.2.2.1和灰色部分</strong><br>selector执行select()方法，灰色部分是select()返回的IO事件集合的遍历循环。<br><strong>2.x</strong> 处理accept事件，获得客户端的连接(TNonblockTransport) ，注册READ事件，创建FrameBuffer,准备读取客户端发送的数据。<br><strong>3.x</strong> 处理READ事件，调用服务端的接口实现类<br><strong>4.x</strong> 处理WRITE事件，向客户端发送调用结果<br><strong>5.2.2.2</strong><br>遍历 selectInterestChanges，注册FrameBuffer现在要关注的IO事件。<br><strong>5.3 5.4</strong><br>等待SelectThread退出，停止监听端口，服务结束。</p>
+<img src="/2019/10/25/thrift源码（四）非阻塞服务端/serverflow.png" title="image">
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/thrift/" rel="tag"># thrift</a>
+          
+            <a href="/tags/rpc框架/" rel="tag"># rpc框架</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/24/thrift源码（三）服务端/" rel="next" title="thrift源码（三）服务端">
+                <i class="fa fa-chevron-left"></i> thrift源码（三）服务端
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">19</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">26</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#非阻塞服务端TNonblockingServer"><span class="nav-number">1.</span> <span class="nav-text">非阻塞服务端TNonblockingServer</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#SelectThread"><span class="nav-number">1.1.</span> <span class="nav-text">SelectThread</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#FrameBuffer"><span class="nav-number">1.2.</span> <span class="nav-text">FrameBuffer</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#时序图"><span class="nav-number">1.3.</span> <span class="nav-text">时序图</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2019</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
