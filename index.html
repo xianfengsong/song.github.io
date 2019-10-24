@@ -355,7 +355,7 @@
                 
               
 
-              <time title="创建时间：2019-10-25 00:12:07 / 修改时间：00:48:54" itemprop="dateCreated datePublished" datetime="2019-10-25T00:12:07+08:00">2019-10-25</time>
+              <time title="创建时间：2019-10-25 00:12:07 / 修改时间：01:24:44" itemprop="dateCreated datePublished" datetime="2019-10-25T00:12:07+08:00">2019-10-25</time>
             
 
             
@@ -413,7 +413,7 @@
       
         
           <h3 id="非阻塞服务端TNonblockingServer"><a href="#非阻塞服务端TNonblockingServer" class="headerlink" title="非阻塞服务端TNonblockingServer"></a>非阻塞服务端TNonblockingServer</h3><p>thrift的非阻塞服务端，采用还是类似Reactor的IO复用模型</p>
-<p><img src="http://upload-images.jianshu.io/upload_images/1452123-35a5505c0d9928f7.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240" alt="reactor uml"><br>对于TNonblockingServer，使用的是单线程的reactor模式，<br>客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。<br>
+<p><img src="https://www.2cto.com/uploadfile/2012/0816/20120816083811838.jpg" alt="reactor uml"><br>对于TNonblockingServer，使用的是单线程的reactor模式，<br>客户端的请求会被公平的处理(没有优先级，看哪个请求先触发selector)，使用TNonblockingServer时必须使用TFramedTransport，不然无法确定数据包何时读取完成(数据边界)。<br>
           <!--noindex-->
           
             <div class="post-button text-center">
