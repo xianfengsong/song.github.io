@@ -121,7 +121,7 @@
 <meta property="og:image" content="http://www.throwsnew.com/2020/02/01/量化交易入门/debug.png">
 <meta property="og:image" content="http://www.throwsnew.com/2020/02/01/量化交易入门/run.png">
 <meta property="og:image" content="http://www.throwsnew.com/2020/02/01/量化交易入门/real.png">
-<meta property="og:updated_time" content="2020-02-01T03:57:08.949Z">
+<meta property="og:updated_time" content="2020-02-01T04:32:26.455Z">
 <meta name="twitter:card" content="summary">
 <meta name="twitter:title" content="量化交易入门">
 <meta name="twitter:description" content="之前听说过一些通过python编写交易策略的量化交易平台，现在来了解一下交易平台的使用方式。这篇文章会演示怎么在交易平台上编写一个简单基金定投策略。 量化交易介绍 量化交易（Quantitative Trading）是指借助现代统计学和数学的方法，利用计算机技术来进行交易的证券投资方式。量化交易从庞大的历史数据中海选能带来超额收益的多种“大概率”事件以制定策略，用数量模型验证及固化这些规律和策略，">
@@ -357,7 +357,7 @@
                 
               
 
-              <time title="创建时间：2020-02-01 10:24:31 / 修改时间：11:57:08" itemprop="dateCreated datePublished" datetime="2020-02-01T10:24:31+08:00">2020-02-01</time>
+              <time title="创建时间：2020-02-01 10:24:31 / 修改时间：12:32:26" itemprop="dateCreated datePublished" datetime="2020-02-01T10:24:31+08:00">2020-02-01</time>
             
 
             
@@ -401,9 +401,11 @@
 </blockquote>
 <p>个人理解量化交易的核心就是数学模型，编程只是量化交易的实现方式。数学模型的评估方式是通过输入历史数据让我们“穿越”回之前的某一个时刻，然后按照模型进行交易，对比策略带来的收益（回测）。因为严格按照数据进行决策量化交易可以克服人性的弱点，也可以克服认知偏差，另外在一个很大的资本市场，比如有成千上万只股票的时候，强大的定量化交易的信息处理能力能反映它的优势，能捕捉更多的投资机会，拓展更大的投资机会。不过因为模型主要是根据历史数据来构建的，所以它吸收新的信息的能力是比较缓慢和迟钝的。一旦外部环境发生变化或者发生某些重大事件（比如东哥事件～），有效性很可能就会受到影响。现在国内也有一些量化交易的主题基金，和其他主题的基金相比表现也比较一般。</p>
 <a id="more"></a>
-<img src="/2020/02/01/量化交易入门/found.jpeg" title="image"> 
+<div align="center"> <img src="/2020/02/01/量化交易入门/found.jpeg" title="image"> </div>
+
 <p>量化投资的代表人物是<a href="https://wiki.mbalib.com/wiki/%E8%A5%BF%E8%92%99%E6%96%AF" target="_blank" rel="noopener">詹姆斯·西蒙斯</a>（James Simons），他是一位数学家，和陈省身一起提出了“陈-西蒙斯定理”，后来成立了文艺复兴科技公司开始从事量化交易，截至2019年10月，他的净资产估计为216亿美元，是美国第21首富。</p>
-<img src="/2020/02/01/量化交易入门/james.jpg" title="image">
+<div align="center"> <img src="/2020/02/01/量化交易入门/james.jpg" title="image"> </div>
+
 <p>（西蒙斯公司旗下的大奖章基金，在2008年标普500指数下跌37％时，扣除费用后的收益为82％）</p>
 <h2 id="量化交易平台"><a href="#量化交易平台" class="headerlink" title="量化交易平台"></a>量化交易平台</h2><p>量化交易平台给普通人提供了开发交易策略的平台，一般都会提供比较完整的股票/基金/期货数据，还有策略的在线运行环境，和用户交流的社区。在百度上搜索“量化交易平台”，我随便选了一个JoinQuant聚宽量化交易平台，地址是 <a href="https://www.joinquant.com" target="_blank" rel="noopener">https://www.joinquant.com</a> ，后面的演示以这个平台为准。</p>
 <h2 id="编写交易策略"><a href="#编写交易策略" class="headerlink" title="编写交易策略"></a>编写交易策略</h2><p>在joinquant上注册之后，就可以新建交易策略了,下面是一个基金定投策略的代码：</p>
