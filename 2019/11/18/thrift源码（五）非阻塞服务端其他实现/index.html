@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="THsHaServerHsHa=HalfSync HalfAsync 半同步，半异步在处理IO事件时是同步的，在执行invoke方法时是在线程池异步执行的。本质上是一个添加了工作线程池的Reactor模型： 内部使用了一个自定义的线程池ExecutorService，用线程池中的线程执行FrameBuffer的Invoke方法，非常简单。上面已经说明invoke()方法只执行了服务端本地的接口实现">
+<meta name="keywords" content="thrift,rpc框架">
+<meta property="og:type" content="article">
+<meta property="og:title" content="thrift源码（五）非阻塞服务端其他实现">
+<meta property="og:url" content="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="THsHaServerHsHa=HalfSync HalfAsync 半同步，半异步在处理IO事件时是同步的，在执行invoke方法时是在线程池异步执行的。本质上是一个添加了工作线程池的Reactor模型： 内部使用了一个自定义的线程池ExecutorService，用线程池中的线程执行FrameBuffer的Invoke方法，非常简单。上面已经说明invoke()方法只执行了服务端本地的接口实现">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/reactor-pool.png">
+<meta property="og:image" content="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/reactor-pool.png">
+<meta property="og:updated_time" content="2020-01-30T12:34:03.109Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="thrift源码（五）非阻塞服务端其他实现">
+<meta name="twitter:description" content="THsHaServerHsHa=HalfSync HalfAsync 半同步，半异步在处理IO事件时是同步的，在执行invoke方法时是在线程池异步执行的。本质上是一个添加了工作线程池的Reactor模型： 内部使用了一个自定义的线程池ExecutorService，用线程池中的线程执行FrameBuffer的Invoke方法，非常简单。上面已经说明invoke()方法只执行了服务端本地的接口实现">
+<meta name="twitter:image" content="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/reactor-pool.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>thrift源码（五）非阻塞服务端其他实现 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2019/11/18/thrift源码（五）非阻塞服务端其他实现/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">thrift源码（五）非阻塞服务端其他实现
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2019-11-18 23:35:19" itemprop="dateCreated datePublished" datetime="2019-11-18T23:35:19+08:00">2019-11-18</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-01-30 20:34:03" itemprop="dateModified" datetime="2020-01-30T20:34:03+08:00">2020-01-30</time>
+              
+            
+          </span>
+
+          
+            <span class="post-category">
+            
+              <span class="post-meta-divider">|</span>
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-folder-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">分类于</span>
+              
+              
+                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/thrift源码/" itemprop="url" rel="index"><span itemprop="name">thrift源码</span></a></span>
+
+                
+                
+              
+            </span>
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <h3 id="THsHaServer"><a href="#THsHaServer" class="headerlink" title="THsHaServer"></a>THsHaServer</h3><p>HsHa=HalfSync HalfAsync 半同步，半异步<br>在处理IO事件时是同步的，在执行invoke方法时是在线程池异步执行的。<br>本质上是一个添加了工作线程池的Reactor模型：<br><img src="/2019/11/18/thrift源码（五）非阻塞服务端其他实现/reactor-pool.png" title="image"></p>
+<p>内部使用了一个自定义的线程池ExecutorService，用线程池中的线程执行FrameBuffer的Invoke方法，非常简单。上面已经说明invoke()方法只执行了服务端本地的接口实现类，并没有做IO操作，所以在THsHaServer中IO操作还是在SelectThread线程内完成的。<br><a id="more"></a></p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br></pre></td><td class="code"><pre><span class="line">  <span class="comment">//线程池 invoker</span></span><br><span class="line">  <span class="keyword">private</span> ExecutorService invoker;</span><br><span class="line"></span><br><span class="line"><span class="comment">/**</span></span><br><span class="line"><span class="comment">   * 重写了requestInvoke方法</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  <span class="meta">@Override</span></span><br><span class="line">  <span class="function"><span class="keyword">protected</span> <span class="keyword">boolean</span> <span class="title">requestInvoke</span><span class="params">(FrameBuffer frameBuffer)</span> </span>&#123;</span><br><span class="line">    <span class="keyword">try</span> &#123;</span><br><span class="line">      invoker.execute(<span class="keyword">new</span> Invocation(frameBuffer));</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">    &#125; <span class="keyword">catch</span> (RejectedExecutionException rx) &#123;</span><br><span class="line">      LOGGER.warn(<span class="string">"ExecutorService rejected execution!"</span>, rx);</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line"></span><br><span class="line">  <span class="comment">/**</span></span><br><span class="line"><span class="comment">   * final修饰的FrameBuffer</span></span><br><span class="line"><span class="comment">   */</span></span><br><span class="line">  <span class="keyword">private</span> <span class="class"><span class="keyword">class</span> <span class="title">Invocation</span> <span class="keyword">implements</span> <span class="title">Runnable</span> </span>&#123;</span><br><span class="line"></span><br><span class="line">    <span class="keyword">private</span> <span class="keyword">final</span> FrameBuffer frameBuffer;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="title">Invocation</span><span class="params">(<span class="keyword">final</span> FrameBuffer frameBuffer)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">this</span>.frameBuffer = frameBuffer;</span><br><span class="line">    &#125;</span><br><span class="line"></span><br><span class="line">    <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      frameBuffer.invoke();</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>下面是THsHaServer对线程池的创建和销毁代码：<br>Options的默认配置是5个线程，60s空闲时间。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//创建线程池</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">static</span> ExecutorService <span class="title">createInvokerPool</span><span class="params">(Options options)</span> </span>&#123;</span><br><span class="line">   <span class="keyword">int</span> workerThreads = options.workerThreads;</span><br><span class="line">   <span class="keyword">int</span> stopTimeoutVal = options.stopTimeoutVal;</span><br><span class="line">   TimeUnit stopTimeoutUnit = options.stopTimeoutUnit;</span><br><span class="line"></span><br><span class="line">   LinkedBlockingQueue&lt;Runnable&gt; queue = <span class="keyword">new</span> LinkedBlockingQueue&lt;Runnable&gt;();</span><br><span class="line">   ExecutorService invoker = <span class="keyword">new</span> ThreadPoolExecutor(workerThreads, workerThreads,</span><br><span class="line">     stopTimeoutVal, stopTimeoutUnit, queue);</span><br><span class="line"></span><br><span class="line">   <span class="keyword">return</span> invoker;</span><br><span class="line"> &#125;</span><br><span class="line"><span class="comment">//等待线程池退出,只要线程池没彻底关闭,即使被中断也要等待足够的时间再退出</span></span><br><span class="line"><span class="function"><span class="keyword">protected</span> <span class="keyword">void</span> <span class="title">gracefullyShutdownInvokerPool</span><span class="params">()</span> </span>&#123;</span><br><span class="line">   <span class="comment">// try to gracefully shut down the executor service</span></span><br><span class="line">   invoker.shutdown();</span><br><span class="line"></span><br><span class="line">   <span class="comment">// Loop until awaitTermination finally does return without a interrupted</span></span><br><span class="line">   <span class="comment">// exception. If we don't do this, then we'll shut down prematurely. We want</span></span><br><span class="line">   <span class="comment">// to let the executorService clear it's task queue, closing client sockets</span></span><br><span class="line">   <span class="comment">// appropriately.</span></span><br><span class="line">   <span class="keyword">long</span> timeoutMS = <span class="number">10000</span>;</span><br><span class="line">   <span class="keyword">long</span> now = System.currentTimeMillis();</span><br><span class="line">   <span class="keyword">while</span> (timeoutMS &gt;= <span class="number">0</span>) &#123;</span><br><span class="line">     <span class="keyword">try</span> &#123;</span><br><span class="line">       invoker.awaitTermination(timeoutMS, TimeUnit.MILLISECONDS);</span><br><span class="line">       <span class="keyword">break</span>;</span><br><span class="line">     &#125; <span class="keyword">catch</span> (InterruptedException ix) &#123;</span><br><span class="line">       <span class="keyword">long</span> newnow = System.currentTimeMillis();</span><br><span class="line">       timeoutMS -= (newnow - now);</span><br><span class="line">       now = newnow;</span><br><span class="line">     &#125;</span><br><span class="line">   &#125;</span><br><span class="line"> &#125;</span><br></pre></td></tr></table></figure>
+<h3 id="TThreadSelectorServer"><a href="#TThreadSelectorServer" class="headerlink" title="TThreadSelectorServer"></a>TThreadSelectorServer</h3><p>我使用的0.5.x版本没有这个server实现，在0.8.x版本thrift添加了TThreadedSelectorServer</p>
+<p>据thrift描述：<br>在多核环境中，如果瓶颈是单线程的selector获得的CPU计算能力不足, 那么它的性能要优于TNonblockingServer/THsHaServer。</p>
+<p>而且because the accept handling is decoupled from<br>  reads/writes and invocation, the server has better ability to handle back-pressure from new connections<br>  (backpress背压，是一个很有意思的名词，在很多地方有用到 <a href="http://zhangtielei.com/posts/blog-rxjava-backpressure.html" target="_blank" rel="noopener">比如RxJava</a> 或者<a href="https://baike.baidu.com/item/%E8%83%8C%E5%8E%8B%E9%98%80" target="_blank" rel="noopener">背压阀</a>)</p>
+<p><a href="https://github.com/apache/thrift/blob/0.8.x/lib/java/src/org/apache/thrift/server/TThreadedSelectorServer.java" target="_blank" rel="noopener">TThreadedSelectorServer源码地址</a></p>
+<p>TThreadSelectorServer是<strong>Multiple Reactors</strong>模式的实现，<br>mainReactor只负责完成accept操作，子reactor处理读、写事件。图中只画出来一个subReactor线程的情况，实际可能配置多个线程运行subReactor。</p>
+<img src="/2019/11/18/thrift源码（五）非阻塞服务端其他实现/reactor-pool.png" title="image">
+<p>在实现<strong>Multiple Reactors</strong>时，TThreadSelectorServer的AcceptThread相当于MainReactor,SelectorThread相当于subReactor,下面只选择部分代码做介绍：</p>
+<h4 id="TThreadedSelectorServer-java"><a href="#TThreadedSelectorServer-java" class="headerlink" title="TThreadedSelectorServer.java"></a>TThreadedSelectorServer.java</h4><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//startThreads()方法,初始化AcceptThread和SelectorThread(集合)：</span></span><br><span class="line"><span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; args.selectorThreads; ++i) &#123;</span><br><span class="line">        selectorThreads.add(<span class="keyword">new</span> SelectorThread(args.acceptQueueSizePerThread));</span><br><span class="line">      &#125;</span><br><span class="line">      acceptThread = <span class="keyword">new</span> AcceptThread((TNonblockingServerTransport) serverTransport_,</span><br><span class="line">        createSelectorThreadLoadBalancer(selectorThreads));</span><br><span class="line">      stopped_ = <span class="keyword">false</span>;</span><br><span class="line">      <span class="keyword">for</span> (SelectorThread thread : selectorThreads) &#123;</span><br><span class="line">        thread.start();</span><br><span class="line">      &#125;</span><br><span class="line">      acceptThread.start();</span><br><span class="line"><span class="keyword">return</span> <span class="keyword">true</span>;</span><br></pre></td></tr></table></figure>
+<h4 id="AcceptThread-java"><a href="#AcceptThread-java" class="headerlink" title="AcceptThread.java"></a>AcceptThread.java</h4><p><strong>run()</strong>方法里只执行select()操作：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        <span class="keyword">while</span> (!stopped_) &#123;</span><br><span class="line">          select();</span><br><span class="line">        &#125;</span><br><span class="line">      &#125; <span class="keyword">catch</span> (Throwable t) &#123;</span><br><span class="line">        LOGGER.error(<span class="string">"run() exiting due to uncaught error"</span>, t);</span><br><span class="line">      &#125; <span class="keyword">finally</span> &#123;</span><br><span class="line">        <span class="comment">// This will wake up the selector threads</span></span><br><span class="line">        TThreadedSelectorServer.<span class="keyword">this</span>.stop();</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在<strong>handleAccept()</strong>方法中，处理客户端的建立连接的请求：<br>AcceptThread有两种工作模式，FAST_ACCEPT是收到连接请求就接受，FAIR_ACCEPT是把连接请求丢到工作线程池invoker中，这样会等之前的连接请求被工作线程执行后，才会处理后来的连接请求：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">handleAccept</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="keyword">final</span> TNonblockingTransport client = doAccept();</span><br><span class="line">      <span class="keyword">if</span> (client != <span class="keyword">null</span>) &#123;</span><br><span class="line">        <span class="comment">// Pass this connection to a selector thread</span></span><br><span class="line">        <span class="keyword">final</span> SelectorThread targetThread = threadChooser.nextThread();</span><br><span class="line"></span><br><span class="line">        <span class="keyword">if</span> (args.acceptPolicy == Args.AcceptPolicy.FAST_ACCEPT || invoker == <span class="keyword">null</span>) &#123;</span><br><span class="line">          doAddAccept(targetThread, client);</span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;</span><br><span class="line">          <span class="comment">// FAIR_ACCEPT</span></span><br><span class="line">          <span class="keyword">try</span> &#123;</span><br><span class="line">            invoker.submit(<span class="keyword">new</span> Runnable() &#123;</span><br><span class="line">              <span class="function"><span class="keyword">public</span> <span class="keyword">void</span> <span class="title">run</span><span class="params">()</span> </span>&#123;</span><br><span class="line">                doAddAccept(targetThread, client);</span><br><span class="line">              &#125;</span><br><span class="line">            &#125;);</span><br><span class="line">          &#125; <span class="keyword">catch</span> (RejectedExecutionException rx) &#123;</span><br><span class="line">            ...</span><br><span class="line">          &#125;</span><br><span class="line">        &#125;</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>doAddAccept()</strong>方法，把client连接交给SelectorThread处理，后续的其他操作就和AcceptThread无关了：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">doAddAccept</span><span class="params">(SelectorThread thread, TNonblockingTransport client)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">if</span> (!thread.addAcceptedConnection(client)) &#123;</span><br><span class="line">        client.close();</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h4 id="SelectorThread-java"><a href="#SelectorThread-java" class="headerlink" title="SelectorThread.java"></a>SelectorThread.java</h4><p><strong>addAcceptedConnection()</strong>方法</p>
+<p>AcceptThread调用它把任务交给SelectorThread处理，客户端连接会被放入SelectorThread的acceptedQueue等待处理：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">boolean</span> <span class="title">addAcceptedConnection</span><span class="params">(TNonblockingTransport accepted)</span> </span>&#123;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        acceptedQueue.put(accepted);</span><br><span class="line">      &#125; <span class="keyword">catch</span> (InterruptedException e) &#123;</span><br><span class="line">        LOGGER.warn(<span class="string">"Interrupted while adding accepted connection!"</span>, e);</span><br><span class="line">        <span class="keyword">return</span> <span class="keyword">false</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      selector.wakeup();</span><br><span class="line">      <span class="keyword">return</span> <span class="keyword">true</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p>在SelectorThread的<strong>run()</strong>方法</p>
+<p>完成对读/写IO事件的select(),处理acceptQueue中的任务，执行processInterestChanges（之前介绍过，触发FrameBuffer的关注事件更新）</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br></pre></td><td class="code"><pre><span class="line"><span class="keyword">while</span> (!stopped_) &#123;</span><br><span class="line">          select();</span><br><span class="line">          processAcceptedConnections();</span><br><span class="line">          processInterestChanges();</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<p><strong>processAcceptedConnections()</strong>方法</p>
+<p>从acceptQueue队列取出客户端连接，向selector注册OP_READ事件</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br></pre></td><td class="code"><pre><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">processAcceptedConnections</span><span class="params">()</span> </span>&#123;</span><br><span class="line">      <span class="comment">// Register accepted connections</span></span><br><span class="line">      <span class="keyword">while</span> (!stopped_) &#123;</span><br><span class="line">        TNonblockingTransport accepted = acceptedQueue.poll();</span><br><span class="line">        <span class="keyword">if</span> (accepted == <span class="keyword">null</span>) &#123;</span><br><span class="line">          <span class="keyword">break</span>;</span><br><span class="line">        &#125;</span><br><span class="line">        registerAccepted(accepted);</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br><span class="line"><span class="function"><span class="keyword">private</span> <span class="keyword">void</span> <span class="title">registerAccepted</span><span class="params">(TNonblockingTransport accepted)</span> </span>&#123;</span><br><span class="line">      SelectionKey clientKey = <span class="keyword">null</span>;</span><br><span class="line">      <span class="keyword">try</span> &#123;</span><br><span class="line">        clientKey = accepted.registerSelector(selector, SelectionKey.OP_READ);</span><br><span class="line"></span><br><span class="line">        FrameBuffer frameBuffer = <span class="keyword">new</span> FrameBuffer(accepted, clientKey, SelectorThread.<span class="keyword">this</span>);</span><br><span class="line">        clientKey.attach(frameBuffer);</span><br><span class="line">      &#125; <span class="keyword">catch</span> (IOException e) &#123;</span><br><span class="line">        ...</span><br><span class="line">      &#125;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/thrift/" rel="tag"># thrift</a>
+          
+            <a href="/tags/rpc框架/" rel="tag"># rpc框架</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2019/10/25/thrift源码（四）非阻塞服务端/" rel="next" title="thrift源码（四）非阻塞服务端">
+                <i class="fa fa-chevron-left"></i> thrift源码（四）非阻塞服务端
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2020/01/30/量化交易入门/" rel="prev" title="量化交易入门">
+                量化交易入门 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">21</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">27</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+                <span class="links-of-author-item">
+                  <a href="https://weibo.com/xianfengsong" target="_blank" title="Weibo" rel="external nofollow"><i class="fa fa-fw fa-weibo"></i>Weibo</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#THsHaServer"><span class="nav-number">1.</span> <span class="nav-text">THsHaServer</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#TThreadSelectorServer"><span class="nav-number">2.</span> <span class="nav-text">TThreadSelectorServer</span></a><ol class="nav-child"><li class="nav-item nav-level-4"><a class="nav-link" href="#TThreadedSelectorServer-java"><span class="nav-number">2.1.</span> <span class="nav-text">TThreadedSelectorServer.java</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#AcceptThread-java"><span class="nav-number">2.2.</span> <span class="nav-text">AcceptThread.java</span></a></li><li class="nav-item nav-level-4"><a class="nav-link" href="#SelectorThread-java"><span class="nav-number">2.3.</span> <span class="nav-text">SelectorThread.java</span></a></li></ol></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"> &copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+  <div class="powered-by">由 <a class="theme-link" target="_blank" rel="external nofollow" href="https://hexo.io">Hexo</a> 强力驱动 v3.8.0</div>
+
+
+
+  <span class="post-meta-divider">|</span>
+
+
+
+  <div class="theme-info">主题 – <a class="theme-link" target="_blank" rel="external nofollow" href="https://theme-next.org">NexT.Mist</a> v6.5.0</div>
+
+
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
