@@ -111,16 +111,16 @@
   <meta name="description" content="what.布隆过滤器是什么">
 <meta name="keywords" content="中间件">
 <meta property="og:type" content="article">
-<meta property="og:title" content="bloomfilter">
+<meta property="og:title" content="如何设计布隆过滤器(1)">
 <meta property="og:url" content="http://www.throwsnew.com/2020/08/19/bloomfilter01/index.html">
 <meta property="og:site_name" content="throwsnew">
 <meta property="og:description" content="what.布隆过滤器是什么">
 <meta property="og:locale" content="zh-CN">
 <meta property="og:image" content="https://upload.wikimedia.org/wikipedia/commons/a/ac/Bloom_filter.svg">
 <meta property="og:image" content="http://throwsnew.com/images/qrcode.jpg">
-<meta property="og:updated_time" content="2020-10-19T03:57:22.406Z">
+<meta property="og:updated_time" content="2020-10-19T05:12:01.452Z">
 <meta name="twitter:card" content="summary">
-<meta name="twitter:title" content="bloomfilter">
+<meta name="twitter:title" content="如何设计布隆过滤器(1)">
 <meta name="twitter:description" content="what.布隆过滤器是什么">
 <meta name="twitter:image" content="https://upload.wikimedia.org/wikipedia/commons/a/ac/Bloom_filter.svg">
 
@@ -139,7 +139,7 @@
   };
 </script>
 
-  <title>bloomfilter | throwsnew</title>
+  <title>如何设计布隆过滤器(1) | throwsnew</title>
   
 
 
@@ -329,7 +329,7 @@
 
         
         
-          <h2 class="post-title" itemprop="name headline">bloomfilter
+          <h2 class="post-title" itemprop="name headline">如何设计布隆过滤器(1)
               
             
           </h2>
@@ -371,7 +371,7 @@
                 
                   <span class="post-meta-item-text">更新于</span>
                 
-                <time title="修改时间：2020-10-19 11:57:22" itemprop="dateModified" datetime="2020-10-19T11:57:22+08:00">2020-10-19</time>
+                <time title="修改时间：2020-10-19 13:12:01" itemprop="dateModified" datetime="2020-10-19T13:12:01+08:00">2020-10-19</time>
               
             
           </span>
@@ -418,7 +418,7 @@
 <p><strong>速度考虑</strong><br>和BF的介绍不同，在实际使用中只需要调用一次hash函数，然后再用hash值计算出多个子hash值，这样可以减少hash运算的时间，前提是hash函数产生的hash值足够长也分布随机。</p>
 <p>hash值的计算代码如下：<br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//128位的hash结果通过长度为2的long数组范围</span></span><br><span class="line"><span class="keyword">long</span>[] hashes = HighwayHash.hash128(data, <span class="number">0</span>, data.length, HASH_KEYS);</span><br><span class="line"><span class="keyword">long</span>[] indexes = hash(hashes[<span class="number">0</span>], hashes[<span class="number">1</span>], hashIterations, size);</span><br><span class="line"><span class="comment">//使用hash值，进行iterations次计算</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">long</span>[] hash(<span class="keyword">long</span> hash1, <span class="keyword">long</span> hash2, <span class="keyword">int</span> iterations, <span class="keyword">long</span> size) &#123;</span><br><span class="line">    <span class="keyword">long</span>[] indexes = <span class="keyword">new</span> <span class="keyword">long</span>[iterations];                                </span><br><span class="line">    <span class="keyword">long</span> hash = hash1;                                                  </span><br><span class="line">    <span class="keyword">for</span> (<span class="keyword">int</span> i = <span class="number">0</span>; i &lt; iterations; i++) &#123;                              </span><br><span class="line">        indexes[i] = (hash &amp; Long.MAX_VALUE) % size;      </span><br><span class="line">        <span class="comment">//最好不要使用乘法运算</span></span><br><span class="line">        <span class="keyword">if</span> (i % <span class="number">2</span> == <span class="number">0</span>) &#123;                                               </span><br><span class="line">            hash += hash2;                                              </span><br><span class="line">        &#125; <span class="keyword">else</span> &#123;                                                        </span><br><span class="line">            hash += hash1;                                              </span><br><span class="line">        &#125;                                                               </span><br><span class="line">    &#125;                                                                   </span><br><span class="line">    <span class="keyword">return</span> indexes;                                                     </span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure></p>
 <h3 id="如何保证fp不超过期望值"><a href="#如何保证fp不超过期望值" class="headerlink" title="如何保证fp不超过期望值"></a>如何保证fp不超过期望值</h3><p>布隆过滤器是通过调整bit数组大小和hash计算次数来控制fp在一定范围以下的。<br><strong>假设bit数组大小为m,要保存的元素数量为n,hash计算次数为k</strong><br>k的<a href="https://blog.csdn.net/quiet_girl/article/details/88523974" title="计算过程" target="_blank" rel="noopener">计算过程</a>如下：</p>
-<p>首先假设每个bit被设置的概率是独立的，那么某个bit被设置为1的概率是$1/m$</p>
+<p>首先假设每个bit被设置的概率是独立的，那么某个bit被设置为1的概率是 $1/m$</p>
 <p>在经过k次hash计算后，这个bit还没有被设置为1的概率是： $(1-1/m)^{k}$，可以近似为： $e^{-k/m}$ (自然对数e的近似公式)</p>
 <blockquote>
 <p>在已经保存了n个元素后，这个bit还是0的概率：$e^{-nk/m}$, 反之这个bit是1的概率： $1-e^{-nk/m}$</p>
