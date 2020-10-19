@@ -309,7 +309,7 @@
   
   
   <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/05/27/howtodescripegc/">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/08/19/bloomfilter01/">
 
     <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
       <meta itemprop="name" content="Xianfeng Song">
@@ -328,8 +328,8 @@
         
           <h2 class="post-title" itemprop="name headline">
                 
-                <a class="post-title-link" href="/2020/05/27/howtodescripegc/" itemprop="url">
-                  howtodescripegc
+                <a class="post-title-link" href="/2020/08/19/bloomfilter01/" itemprop="url">
+                  bloomfilter
                 </a>
               
             
@@ -355,12 +355,344 @@
                 
               
 
-              <time title="创建时间：2020-05-27 02:13:10 / 修改时间：02:15:35" itemprop="dateCreated datePublished" datetime="2020-05-27T02:13:10+08:00">2020-05-27</time>
+              <time title="创建时间：2020-08-19 11:53:39" itemprop="dateCreated datePublished" datetime="2020-08-19T11:53:39+08:00">2020-08-19</time>
             
 
             
               
 
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-10-19 11:57:22" itemprop="dateModified" datetime="2020-10-19T11:57:22+08:00">2020-10-19</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          <h2 id="what-布隆过滤器是什么"><a href="#what-布隆过滤器是什么" class="headerlink" title="what.布隆过滤器是什么"></a>what.布隆过滤器是什么</h2><p><img src="https://upload.wikimedia.org/wikipedia/commons/a/ac/Bloom_filter.svg" alt="示意图" title="示意图"></p>
+          <!--noindex-->
+          
+            <div class="post-button text-center">
+              <a class="btn" href="/2020/08/19/bloomfilter01/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+         
+          <!--/noindex-->
+        
+      
+    </div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2020/06/21/理解CMS回收器的preclean阶段/" itemprop="url">
+                  理解CMS回收器的preclean阶段
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2020-06-21 13:11:23" itemprop="dateCreated datePublished" datetime="2020-06-21T13:11:23+08:00">2020-06-21</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-06-26 12:07:12" itemprop="dateModified" datetime="2020-06-26T12:07:12+08:00">2020-06-26</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        
+          <p>在《深入理解Java虚拟机：JVM高级特性与最佳实践（第二版）》里这样介绍CMS回收器的工作过程:</p>
+<blockquote>
+<p>CMS收集器是基于“标记—清除”算法实现的，它的运作过程相对于前面几种收集器来说更复杂一些，整个过程分为4个步骤，包括：   •初始标记（CMS initial mark）   •并发标记（CMS concurrent mark）   •重新标记（CMS remark）   •并发清除（CMS concurrent sweep）</p>
+</blockquote>
+<p>很多人可能只看了这本书的介绍（实际这应该只是作者的概括），就认为CMS回收器就只有这4个阶段，看一下这里的gc log:<br>
+          <!--noindex-->
+          
+            <div class="post-button text-center">
+              <a class="btn" href="/2020/06/21/理解CMS回收器的preclean阶段/#more" rel="contents">
+                阅读全文 &raquo;
+              </a>
+            </div>
+         
+          <!--/noindex-->
+        
+      
+    </p></div>
+
+    
+
+    
+    
+    
+
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+
+      
+
+      
+      
+        <div class="post-eof"></div>
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+    
+      
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">
+                
+                <a class="post-title-link" href="/2020/05/27/为什么别人能把java-gc讲清楚/" itemprop="url">
+                  为什么别人能把java gc讲清楚
+                </a>
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2020-05-27 02:13:10" itemprop="dateCreated datePublished" datetime="2020-05-27T02:13:10+08:00">2020-05-27</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-06-21 13:10:37" itemprop="dateModified" datetime="2020-06-21T13:10:37+08:00">2020-06-21</time>
               
             
           </span>
@@ -398,7 +730,7 @@
           <!--noindex-->
           
             <div class="post-button text-center">
-              <a class="btn" href="/2020/05/27/howtodescripegc/#more" rel="contents">
+              <a class="btn" href="/2020/05/27/为什么别人能把java-gc讲清楚/#more" rel="contents">
                 阅读全文 &raquo;
               </a>
             </div>
@@ -1644,341 +1976,6 @@
 
 
     
-      
-
-  
-
-  
-  
-  
-
-  
-
-  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2019/05/05/restlet-示例/">
-
-    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="Xianfeng Song">
-      <meta itemprop="description" content="a blog learn share practice">
-      <meta itemprop="image" content="/images/logoNew.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="throwsnew">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h2 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2019/05/05/restlet-示例/" itemprop="url">
-                  restlet 示例
-                </a>
-              
-            
-          </h2>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-
-            
-            
-            
-
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">发表于</span>
-              
-
-              
-                
-              
-
-              <time title="创建时间：2019-05-05 00:34:58" itemprop="dateCreated datePublished" datetime="2019-05-05T00:34:58+08:00">2019-05-05</time>
-            
-
-            
-              
-
-              
-                
-                <span class="post-meta-divider">|</span>
-                
-
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                
-                  <span class="post-meta-item-text">更新于</span>
-                
-                <time title="修改时间：2019-08-01 23:55:51" itemprop="dateModified" datetime="2019-08-01T23:55:51+08:00">2019-08-01</time>
-              
-            
-          </span>
-
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          <h3 id="背景介绍"><a href="#背景介绍" class="headerlink" title="背景介绍"></a>背景介绍</h3><h4 id="restlet"><a href="#restlet" class="headerlink" title="restlet"></a><a href="https://restlet.com/open-source/" target="_blank" rel="noopener">restlet</a></h4><p>是一个REST设计规范下的框架，让我们简单快速的开发RESTful应用。同类型的框架还有<a href="https://jersey.github.io/" target="_blank" rel="noopener">Jersey</a>等，restlet在同类框架中是诞生比较早的一个（2005年），本文使用的是2.3.10版本是2017年发布的。<br>
-          <!--noindex-->
-          
-            <div class="post-button text-center">
-              <a class="btn" href="/2019/05/05/restlet-示例/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-         
-          <!--/noindex-->
-        
-      
-    </p></div>
-
-    
-
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
-      
-
-  
-
-  
-  
-  
-
-  
-
-  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
-  
-  
-  
-  <div class="post-block">
-    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2018/06/12/mongodb-使用spring-data处理嵌套文档的实践/">
-
-    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
-      <meta itemprop="name" content="Xianfeng Song">
-      <meta itemprop="description" content="a blog learn share practice">
-      <meta itemprop="image" content="/images/logoNew.gif">
-    </span>
-
-    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
-      <meta itemprop="name" content="throwsnew">
-    </span>
-
-    
-      <header class="post-header">
-
-        
-        
-          <h2 class="post-title" itemprop="name headline">
-                
-                <a class="post-title-link" href="/2018/06/12/mongodb-使用spring-data处理嵌套文档的实践/" itemprop="url">
-                  mongodb:使用spring-data处理嵌套文档的实践
-                </a>
-              
-            
-          </h2>
-        
-
-        <div class="post-meta">
-          <span class="post-time">
-
-            
-            
-            
-
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-calendar-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">发表于</span>
-              
-
-              
-                
-              
-
-              <time title="创建时间：2018-06-12 23:10:50" itemprop="dateCreated datePublished" datetime="2018-06-12T23:10:50+08:00">2018-06-12</time>
-            
-
-            
-              
-
-              
-                
-                <span class="post-meta-divider">|</span>
-                
-
-                <span class="post-meta-item-icon">
-                  <i class="fa fa-calendar-check-o"></i>
-                </span>
-                
-                  <span class="post-meta-item-text">更新于</span>
-                
-                <time title="修改时间：2019-03-14 00:11:38" itemprop="dateModified" datetime="2019-03-14T00:11:38+08:00">2019-03-14</time>
-              
-            
-          </span>
-
-          
-            <span class="post-category">
-            
-              <span class="post-meta-divider">|</span>
-            
-              <span class="post-meta-item-icon">
-                <i class="fa fa-folder-o"></i>
-              </span>
-              
-                <span class="post-meta-item-text">分类于</span>
-              
-              
-                <span itemprop="about" itemscope="" itemtype="http://schema.org/Thing"><a href="/categories/mongodb/" itemprop="url" rel="index"><span itemprop="name">mongodb</span></a></span>
-
-                
-                
-              
-            </span>
-          
-
-          
-            
-          
-
-          
-          
-
-          
-
-          
-
-          
-
-        </div>
-      </header>
-    
-
-    
-    
-    
-    <div class="post-body" itemprop="articleBody">
-
-      
-      
-
-      
-        
-          <h3 id="场景介绍"><a href="#场景介绍" class="headerlink" title="场景介绍"></a>场景介绍</h3><p>在使用mongoDB保存数据时，不需要再严格遵守数据库范式，比如在设计用户订单存储时，我们可以把用户和订单的信息保存在同一个文档当中，用嵌套的方式代替用户表引用订单表的方式。本文以一个用户-订单的实例来介绍使用mongoDB嵌套保存数据时如何结合spring mongo data 实现基本功能，并对不同方案做了性能对比。</p>
-<p>在用户-订单的例子中，订单作为数嵌套保存在用户信息中，对外提供了更新和分页查询订单的功能，查询返回的订单以时间倒序，数据格式如下：<br>
-          <!--noindex-->
-          
-            <div class="post-button text-center">
-              <a class="btn" href="/2018/06/12/mongodb-使用spring-data处理嵌套文档的实践/#more" rel="contents">
-                阅读全文 &raquo;
-              </a>
-            </div>
-         
-          <!--/noindex-->
-        
-      
-    </p></div>
-
-    
-
-    
-    
-    
-
-    
-
-    
-
-    
-
-    <footer class="post-footer">
-      
-
-      
-
-      
-
-      
-      
-        <div class="post-eof"></div>
-      
-    </footer>
-  </div>
-  
-  
-  
-  </article>
-
-
-    
   </section>
 
   
@@ -2028,7 +2025,7 @@
                 
                   <a href="/archives/">
                 
-                    <span class="site-state-item-count">23</span>
+                    <span class="site-state-item-count">25</span>
                     <span class="site-state-item-name">日志</span>
                   </a>
                 </div>
@@ -2124,7 +2121,9 @@
                     
                       
                     
-                    <span class="site-state-item-count">28</span>
+                      
+                    
+                    <span class="site-state-item-count">29</span>
                     <span class="site-state-item-name">标签</span>
                   </a>
                 </div>

@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="在《深入理解Java虚拟机：JVM高级特性与最佳实践（第二版）》里这样介绍CMS回收器的工作过程:  CMS收集器是基于“标记—清除”算法实现的，它的运作过程相对于前面几种收集器来说更复杂一些，整个过程分为4个步骤，包括：   •初始标记（CMS initial mark）   •并发标记（CMS concurrent mark）   •重新标记（CMS remark）   •并发清除（CMS c">
+<meta name="keywords" content="博客,java,后台开发,数据库,多线程,开源代码,IT网站,Developer">
+<meta property="og:type" content="article">
+<meta property="og:title" content="理解CMS回收器的preclean阶段">
+<meta property="og:url" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="在《深入理解Java虚拟机：JVM高级特性与最佳实践（第二版）》里这样介绍CMS回收器的工作过程:  CMS收集器是基于“标记—清除”算法实现的，它的运作过程相对于前面几种收集器来说更复杂一些，整个过程分为4个步骤，包括：   •初始标记（CMS initial mark）   •并发标记（CMS concurrent mark）   •重新标记（CMS remark）   •并发清除（CMS c">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/gen1.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/gc.jpg">
+<meta property="og:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/gen2.png">
+<meta property="og:image" content="https://plumbr.io/app/uploads/2015/06/g1-08.png">
+<meta property="og:image" content="https://plumbr.io/app/uploads/2015/06/g1-09.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/abpreclean.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/summary.png">
+<meta property="og:updated_time" content="2020-06-26T04:07:12.582Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="理解CMS回收器的preclean阶段">
+<meta name="twitter:description" content="在《深入理解Java虚拟机：JVM高级特性与最佳实践（第二版）》里这样介绍CMS回收器的工作过程:  CMS收集器是基于“标记—清除”算法实现的，它的运作过程相对于前面几种收集器来说更复杂一些，整个过程分为4个步骤，包括：   •初始标记（CMS initial mark）   •并发标记（CMS concurrent mark）   •重新标记（CMS remark）   •并发清除（CMS c">
+<meta name="twitter:image" content="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/gen1.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>理解CMS回收器的preclean阶段 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/06/21/理解CMS回收器的preclean阶段/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">理解CMS回收器的preclean阶段
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2020-06-21 13:11:23" itemprop="dateCreated datePublished" datetime="2020-06-21T13:11:23+08:00">2020-06-21</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-06-26 12:07:12" itemprop="dateModified" datetime="2020-06-26T12:07:12+08:00">2020-06-26</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>在《深入理解Java虚拟机：JVM高级特性与最佳实践（第二版）》里这样介绍CMS回收器的工作过程:</p>
+<blockquote>
+<p>CMS收集器是基于“标记—清除”算法实现的，它的运作过程相对于前面几种收集器来说更复杂一些，整个过程分为4个步骤，包括：   •初始标记（CMS initial mark）   •并发标记（CMS concurrent mark）   •重新标记（CMS remark）   •并发清除（CMS concurrent sweep）</p>
+</blockquote>
+<p>很多人可能只看了这本书的介绍（实际这应该只是作者的概括），就认为CMS回收器就只有这4个阶段，看一下这里的gc log:<br><a id="more"></a><br><figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">0.245</span>: [GC (CMS Initial Mark) [<span class="number">1</span> CMS-initial-mark: <span class="number">32776</span>K(<span class="number">53248</span>K)] <span class="number">41701</span>K(<span class="number">99328</span>K), <span class="number">0.0061676</span> secs] [Times: user=<span class="number">0.01</span> sys=<span class="number">0.00</span>, real=<span class="number">0.01</span> secs] </span><br><span class="line"><span class="number">0.251</span>: [CMS-concurrent-mark-start]</span><br><span class="line"><span class="number">0.270</span>: [CMS-concurrent-mark: <span class="number">0.004</span>/<span class="number">0.020</span> secs] [Times: user=<span class="number">0.08</span> sys=<span class="number">0.01</span>, real=<span class="number">0.02</span> secs] </span><br><span class="line"><span class="number">0.270</span>: [CMS-concurrent-preclean-start]</span><br><span class="line"><span class="number">0.272</span>: [CMS-concurrent-preclean: <span class="number">0.001</span>/<span class="number">0.001</span> secs] [Times: user=<span class="number">0.00</span> sys=<span class="number">0.00</span>, real=<span class="number">0.00</span> secs] </span><br><span class="line"><span class="number">0.272</span>: [CMS-concurrent-abortable-preclean-start]</span><br><span class="line"><span class="number">0.291</span>: [CMS-concurrent-abortable-preclean: <span class="number">0.004</span>/<span class="number">0.019</span> secs] [Times: user=<span class="number">0.09</span> sys=<span class="number">0.00</span>, real=<span class="number">0.02</span> secs] </span><br><span class="line">0.291: [GC (CMS Final Remark) [YG occupancy: 17928 K (46080 K)]0.291: [Rescan (parallel) , 0.0082702 secs]0.299: [weak refs processing, 0.0000475 secs]0.299: [class unloading, 0.0002451 secs]0.299: [scrub symbol table, 0.0003183 secs]0.300: [scrub string table, 0.0001611 secs][1 CMS-remark: 49164K(53248K)] 67093K(99328K), 0.0091462 secs] [Times: user=0.04 sys=0.00, real=0.01 secs] </span><br><span class="line"><span class="number">0.300</span>: [CMS-concurrent-sweep-start]</span><br><span class="line"><span class="number">0.300</span>: [CMS-concurrent-sweep: <span class="number">0.000</span>/<span class="number">0.000</span> secs] [Times: user=<span class="number">0.00</span> sys=<span class="number">0.00</span>, real=<span class="number">0.00</span> secs] </span><br><span class="line"><span class="number">0.300</span>: [CMS-concurrent-reset-start]</span><br><span class="line"><span class="number">0.300</span>: [CMS-concurrent-reset: <span class="number">0.000</span>/<span class="number">0.000</span> secs] [Times: user=<span class="number">0.00</span> sys=<span class="number">0.00</span>, real=<span class="number">0.00</span> secs]</span><br></pre></td></tr></table></figure></p>
+<p>注意日志中“增加”了concurrent-preclean，concurrent-abortable-preclean，concurrent-reset三个阶段，其中concurrent-reset主要是CMS为了下次gc做准备，而重置内部数据结构的过程，这里不做过多介绍。本文主要分享一下我对<strong>concurrent-preclean</strong> 和 <strong>concurrent-abortable-preclean</strong>两个阶段的理解。</p>
+<h2 id="concurrent-preclean"><a href="#concurrent-preclean" class="headerlink" title="concurrent-preclean"></a>concurrent-preclean</h2><h3 id="分代的理想状态"><a href="#分代的理想状态" class="headerlink" title="分代的理想状态"></a>分代的理想状态</h3><p>我们知道jvm利用<strong>分治</strong>的思想，把内存分为老年代和年轻代，在理想情况下，不同分代中的对象彼此不会有引用关系，属于老死不相往来的状态。</p>
+<img src="/2020/06/21/理解CMS回收器的preclean阶段/gen1.png" title="image">
+<p>在gc开始时，为了标记存活对象，gc线程需要沿着对象引用路径从gc root遍历（可达性分析），这时为了得到正确的引用关系，需要暂停应用线程，所以遍历对象的代价很高。因此，每个分代的垃圾回收器都希望<strong>各扫门前雪</strong>，只标记自己分代的存活对象，比如young gc时，当gc线程遇到引用指向老年代时就会停止遍历，因为它只负责回收年轻代内存空间，不需要去访问老年代对象。</p>
+<img src="/2020/06/21/理解CMS回收器的preclean阶段/gc.jpg" title="image">
+<p>但是实际上，年轻代和老年代的对象并不会100%的彼此隔离，会有一些对象引用其他分代对象，这被称为<strong>跨代引用</strong>。如果young gc线程只遍历年轻代内的对象引用，那么老年代到年轻代的跨代引用就会被忽略，被老年代存活对象跨代引用的年轻代对象会被回收，这样就破坏了应用程序的运行。下图展示了实际的对象引用情况，红色箭头代表跨代引用，在young gc时需要标记出来：</p>
+<img src="/2020/06/21/理解CMS回收器的preclean阶段/gen2.png" title="image">
+<h3 id="Card-Marking"><a href="#Card-Marking" class="headerlink" title="Card Marking"></a>Card Marking</h3><p>在young gc时，为了<strong>找到跨代引用</strong>，通常有这几个方法：</p>
+<ol>
+<li>当对象引用路径指向老年代时继续遍历老年代对象找到跨代引用</li>
+<li>线性地扫描老年代对象，标记跨代引用，用顺序读代替离散读</li>
+<li>从程序开始运行，就使用一个集合记录所有跨代引用的创建，在young gc时扫描这个集合里指向年轻代的跨代引用</li>
+</ol>
+<p>前两种方式都需要在young gc时去遍历老年代对象，因为老年代存活对象多，工作量太大，jvm使用的是第三种方式。</p>
+<p>首先分析<strong>跨代引用如何产生的</strong>：对于老年代到年轻代的跨代引用（a-&gt;b），产生条件有两种，一是gc线程把对象a从年轻代移动到了老年代，二是a本身是老年代对象，应用线程修改了a的引用指向了年轻代的b（<br>对于年轻代到老年代的跨代引用就只有第二种情况）。</p>
+<p>对于gc线程本身创建的跨代引用，可以直接由gc线程在创建时记录，所以问题就变成了：<strong>如何记录应用线程修改对象引用时创建的跨代引用？</strong>。</p>
+<p>在jvm中再次使用分治法，将老年代划分成多个card（和linux内存page类似），只要card内对象引用被应用线程修改，就把card标记为dirty。然后young gc时会扫描老年代中dirty card对应的内存区域，记录其中的跨代引用，这种方式被称为<strong>Card Marking</strong>。</p>
+<p>jvm通过写屏障（write barrier）来实现监控程序线程对引用的修改，并且标记对应card，写屏障工作方式和<strong>代理模式</strong>类似，具体来说是通过在引用赋值指令执行时，添加对了card table的修改指令。以最简单的<code>setFoo(Object bar)</code> 方法为例，<a href="http://psy-lob-saw.blogspot.com/2014/10/the-jvm-write-barrier-card-marking.html" target="_blank" rel="noopener">jvm编译的汇编指令如下</a>,第一行是赋值指令，后面几行标记被修改的引用所在的card为脏页，即<code>CARD_TABLE[this address &gt;&gt; 9] = 0</code>：</p>
+<figure class="highlight"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br></pre></td><td class="code"><pre><span class="line">; rsi is 'this' address</span><br><span class="line">; rdx is setter param, reference to bar</span><br><span class="line">; JDK6:</span><br><span class="line">mov    QWORD PTR [rsi+<span class="number">0x20</span>],rdx  ; <span class="keyword">this</span>.foo = bar</span><br><span class="line">mov    r10,rsi                   ; r10 = rsi = <span class="keyword">this</span></span><br><span class="line">shr    r10,<span class="number">0x9</span>                   ; r10 = r10 &gt;&gt; <span class="number">9</span>;</span><br><span class="line">mov    r11,<span class="number">0x7ebdfcff7f00</span>        ; r11 is base of card table, imagine byte[] CARD_TABLE</span><br><span class="line">mov    BYTE PTR [r11+r10*1],0x0  ; Mark 'this' card as dirty, CARD_TABLE[this address &gt;&gt; 9] = 0</span><br></pre></td></tr></table></figure>
+<p><strong>小结</strong>：jvm使用card marking的方式，避免了young gc时扫描整个老年代存活对象，付出的代价是在每次修改引用时添加额外的汇编指令实现写屏障，和额外的内存来保存card table。</p>
+<h3 id="preclean做了什么"><a href="#preclean做了什么" class="headerlink" title="preclean做了什么"></a>preclean做了什么</h3><p>现在回到cms回收器，在老年代gc时，同样使用到了card marking，目的不是找到跨代引用（年轻代到老年代的跨代引用是通过从gc root遍历对象标记的），而是找到前面concurrent-marking阶段被应用线程并发修改的对象引用。</p>
+<p>preclean阶段是<strong>对这些card marking产生的dirty card进行clean</strong>，cms gc线程会扫描dirty card对应的内存区域，更新之前记录的过时的引用信息，并且去掉dirty card的标记，如下图所示：</p>
+<p><img src="https://plumbr.io/app/uploads/2015/06/g1-08.png" alt="引用自https://plumbr.io/"></p>
+<p>在preclean执行后，dirty card被清理，被修改的引用信息也被更新。</p>
+<p><img src="https://plumbr.io/app/uploads/2015/06/g1-09.png" alt="引用自https://plumbr.io/"></p>
+<h2 id="concurrent-abortable-preclean"><a href="#concurrent-abortable-preclean" class="headerlink" title="concurrent-abortable-preclean"></a>concurrent-abortable-preclean</h2><p>concurrent-abortable-preclean阶段目的是减轻final remark阶段（会暂停应用线程）的负担，这个阶段同样会对dirty card的扫描/清理，和concurrent-preclean的区别在于，concurrent-abortable-preclean会重复地以迭代的方式执行，直到满足退出条件。<strong>但是concurrent-preclean已经处理过dirty card,为什么jvm还需要再执行一个类似的阶段呢？</strong></p>
+<h3 id="连续STW"><a href="#连续STW" class="headerlink" title="连续STW"></a>连续STW</h3><p>首先我们考虑下这个情况：如果final-remark阶段开始时刚好进行了young gc（比如ParNew）,应用程序刚因为young gc暂停，然后又会因为final-remark暂停，造成<strong>连续的长暂停</strong>。除此之外，因为young gc线程修改了存活对象的引用地址，会产生很多需要重新扫描的对象，增加了final-remark的工作量。<br>所以concurrent-abortable-preclean除了clean card的作用，还有<strong>调度final-remark开始时机</strong>的作用<a href="https://blogs.oracle.com/poonam/understanding-cms-gc-logs" target="_blank" rel="noopener">参考</a>。cms回收器认为，final-remark最理想的执行时机就是年轻代占用在50%时，这时刚好处于上次young gc完成（0%）和下次young gc开始（100%）的中间节点，如图所示：</p>
+<img src="/2020/06/21/理解CMS回收器的preclean阶段/abpreclean.png" title="image">
+<h3 id="配置参数"><a href="#配置参数" class="headerlink" title="配置参数"></a>配置参数</h3><p>abortable-preclean的<strong>中断条件</strong>，配置参数是<code>-XX:CMSScheduleRemarkEdenPenetration=50</code>（默认值），表示当eden区内存占用到达50%时，中断abortable-preclean，开始执行final-remark，对应<a href="https://github.com/JetBrains/jdk8u_hotspot/blob/12d02c91b0b4c63d04daff4e36a79bb6045b2c7f/src/share/vm/gc_implementation/concurrentMarkSweep/concurrentMarkSweepGeneration.cpp" target="_blank" rel="noopener">jvm源码</a>片段如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">//当eden占用比例超过配置，将_abort_preclean标记赋值为true</span></span><br><span class="line"><span class="keyword">if</span> ((_collectorState == AbortablePreclean) &amp;&amp; !_abort_preclean) &#123;</span><br><span class="line">    <span class="keyword">size_t</span> used = get_eden_used();</span><br><span class="line">    <span class="keyword">size_t</span> capacity = get_eden_capacity();</span><br><span class="line">    assert(used &lt;= capacity, <span class="string">"Unexpected state of Eden"</span>);</span><br><span class="line">    <span class="keyword">if</span> (used &gt;  (capacity/<span class="number">100</span> * CMSScheduleRemarkEdenPenetration)) &#123;</span><br><span class="line">      _abort_preclean = <span class="literal">true</span>;</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br></pre></td></tr></table></figure>
+<p>abortable-preclean的<strong>触发条件</strong>配置， <code>-XX:CMSScheduleRemarkEdenSizeThreshold=2m</code>（默认值），表示当eden内存占用超过2mb时才会执行abortable-preclean，否则没有执行的必要。</p>
+<p>abortable-preclean的<strong>主动退出条件</strong>配置，<code>-XX:CMSMaxAbortablePrecleanTime=5000</code>和CMSMaxAbortablePrecleanLoops，主要因为如果年轻代内存占用增长缓慢，那么abortable-preclean要长时间执行，可能因为preclean赶不上应用线程创造dirty card的速度导致dirty card越来越多，此时还不如执行一个final-remark,对应jvm源码片段如下：</p>
+<figure class="highlight c"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br><span class="line">28</span><br><span class="line">29</span><br><span class="line">30</span><br><span class="line">31</span><br><span class="line">32</span><br><span class="line">33</span><br><span class="line">34</span><br><span class="line">35</span><br><span class="line">36</span><br><span class="line">37</span><br><span class="line">38</span><br><span class="line">39</span><br><span class="line">40</span><br><span class="line">41</span><br><span class="line">42</span><br><span class="line">43</span><br><span class="line">44</span><br><span class="line">45</span><br><span class="line">46</span><br><span class="line">47</span><br><span class="line">48</span><br><span class="line">49</span><br><span class="line">50</span><br><span class="line">51</span><br></pre></td><td class="code"><pre><span class="line"><span class="comment">// Try and schedule the remark such that young gen</span></span><br><span class="line"><span class="comment">// occupancy is CMSScheduleRemarkEdenPenetration %.</span></span><br><span class="line"><span class="comment">// 保留原始注释，看下abortable_preclean的定位</span></span><br><span class="line"><span class="keyword">void</span> CMSCollector::abortable_preclean() &#123;</span><br><span class="line">  <span class="comment">//校验触发条件</span></span><br><span class="line">  <span class="keyword">if</span> (get_eden_used() &gt; CMSScheduleRemarkEdenSizeThreshold) &#123;</span><br><span class="line"></span><br><span class="line">    <span class="comment">// 感受一下作者的纠结，他认为目前的主动退出条件有点蠢，FIX ME!!! 哈哈</span></span><br><span class="line">    <span class="comment">// One, admittedly dumb, strategy is to give up</span></span><br><span class="line">    <span class="comment">// after a certain number of abortable precleaning loops</span></span><br><span class="line">    <span class="comment">// or after a certain maximum time. We want to make</span></span><br><span class="line">    <span class="comment">// this smarter in the next iteration.</span></span><br><span class="line">    <span class="comment">// XXX FIX ME!!! YSR</span></span><br><span class="line">    <span class="keyword">size_t</span> loops = <span class="number">0</span>, workdone = <span class="number">0</span>, cumworkdone = <span class="number">0</span>, waited = <span class="number">0</span>;</span><br><span class="line">    <span class="comment">//should_abort_preclean会检查上面说的_abort_preclean是否为true</span></span><br><span class="line">    <span class="keyword">while</span> (!(should_abort_preclean() ||</span><br><span class="line">             ConcurrentMarkSweepThread::should_terminate())) &#123;</span><br><span class="line">      workdone = preclean_work(CMSPrecleanRefLists2, CMSPrecleanSurvivors2);</span><br><span class="line">      cumworkdone += workdone;</span><br><span class="line">      loops++;</span><br><span class="line">      <span class="comment">// 主动停止执行</span></span><br><span class="line">      <span class="keyword">if</span> ((CMSMaxAbortablePrecleanLoops != <span class="number">0</span>) &amp;&amp;</span><br><span class="line">          loops &gt;= CMSMaxAbortablePrecleanLoops) &#123;</span><br><span class="line">        <span class="keyword">if</span> (PrintGCDetails) &#123;</span><br><span class="line">          gclog_or_tty-&gt;print(<span class="string">" CMS: abort preclean due to loops "</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="keyword">if</span> (pa.wallclock_millis() &gt; CMSMaxAbortablePrecleanTime) &#123;</span><br><span class="line">        <span class="keyword">if</span> (PrintGCDetails) &#123;</span><br><span class="line">          gclog_or_tty-&gt;print(<span class="string">" CMS: abort preclean due to time "</span>);</span><br><span class="line">        &#125;</span><br><span class="line">        <span class="keyword">break</span>;</span><br><span class="line">      &#125;</span><br><span class="line">      <span class="comment">// 如果工作效率不高，主动暂停一会儿</span></span><br><span class="line">      <span class="keyword">if</span> (workdone &lt; CMSAbortablePrecleanMinWorkPerIteration) &#123;</span><br><span class="line">        <span class="comment">// Sleep for some time, waiting for work to accumulate</span></span><br><span class="line">        stopTimer();</span><br><span class="line">        cmsThread()-&gt;wait_on_cms_lock(CMSAbortablePrecleanWaitMillis);</span><br><span class="line">        startTimer();</span><br><span class="line">        waited++;</span><br><span class="line">      &#125;</span><br><span class="line">    &#125;</span><br><span class="line">    <span class="comment">//打印工作情况</span></span><br><span class="line">    <span class="keyword">if</span> (PrintCMSStatistics &gt; <span class="number">0</span>) &#123;</span><br><span class="line">      gclog_or_tty-&gt;print(<span class="string">" [%d iterations, %d waits, %d cards)] "</span>,</span><br><span class="line">                          loops, waited, cumworkdone);</span><br><span class="line">    &#125;</span><br><span class="line">  &#125;</span><br><span class="line">  <span class="keyword">return</span>;</span><br><span class="line">&#125;</span><br></pre></td></tr></table></figure>
+<h2 id="实践验证"><a href="#实践验证" class="headerlink" title="实践验证"></a>实践验证</h2><p>java代码如下：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br><span class="line">19</span><br><span class="line">20</span><br><span class="line">21</span><br><span class="line">22</span><br><span class="line">23</span><br><span class="line">24</span><br><span class="line">25</span><br><span class="line">26</span><br><span class="line">27</span><br></pre></td><td class="code"><pre><span class="line"></span><br><span class="line"><span class="keyword">public</span> <span class="class"><span class="keyword">class</span> <span class="title">DumbObj</span> </span>&#123;</span><br><span class="line">   <span class="function"><span class="keyword">public</span> <span class="title">DumbObj</span><span class="params">(<span class="keyword">int</span> sizeM,DumbObj next)</span> </span>&#123;</span><br><span class="line">       <span class="keyword">this</span>.data = getM(sizeM);</span><br><span class="line">       <span class="keyword">this</span>.next = next;</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">private</span> Byte[] getM(<span class="keyword">int</span> m) &#123;</span><br><span class="line">       <span class="keyword">return</span> <span class="keyword">new</span> Byte[<span class="number">1024</span> * <span class="number">1024</span> * m];</span><br><span class="line">   &#125;</span><br><span class="line">   <span class="keyword">private</span> DumbObj next;</span><br><span class="line">   <span class="keyword">private</span> Byte [] data;</span><br><span class="line">&#125;</span><br><span class="line"><span class="comment">//存活对象</span></span><br><span class="line"><span class="keyword">private</span> <span class="keyword">static</span> List&lt;DumbObj&gt; liveObjs = <span class="keyword">new</span> ArrayList&lt;&gt;(<span class="number">5</span>);</span><br><span class="line"><span class="function"><span class="keyword">public</span> <span class="keyword">static</span> <span class="keyword">void</span> <span class="title">main</span><span class="params">(String[] args)</span> <span class="keyword">throws</span> InterruptedException </span>&#123;</span><br><span class="line">       <span class="comment">//创建新对象触发gc</span></span><br><span class="line">       <span class="keyword">for</span>(<span class="keyword">int</span> i=<span class="number">0</span>;i&lt;<span class="number">25</span>;i++)&#123;</span><br><span class="line">           DumbObj dumb = <span class="keyword">new</span> DumbObj(<span class="number">1</span>, <span class="keyword">null</span>);</span><br><span class="line">           <span class="keyword">if</span>(liveObjs.size()&lt;<span class="number">5</span>)&#123;</span><br><span class="line">               liveObjs.add(<span class="keyword">new</span> DumbObj(<span class="number">1</span>, dumb));</span><br><span class="line">           &#125;<span class="keyword">else</span>&#123;</span><br><span class="line">               dumb.setNext(liveObjs.get(i%<span class="number">5</span>));</span><br><span class="line">           &#125;</span><br><span class="line">       &#125;</span><br><span class="line">       <span class="comment">//等待gc线程工作</span></span><br><span class="line">       TimeUnit.SECONDS.sleep(<span class="number">20</span>);</span><br><span class="line">   &#125;</span><br></pre></td></tr></table></figure>
+<p>在jvm参数里添加-XX:PrintCMSStatistics=1，通过gc日志可以看到cms回收器在preclean阶段执行的操作：</p>
+<blockquote>
+<p>-Xms101m<br>-Xmn50m<br>-Xmx101m<br>-verbose:gc<br>-XX:MetaspaceSize=1m<br>-XX:+UseConcMarkSweepGC<br>-Xloggc:/tmp/gc.log<br>-XX:+PrintGCCause<br>-XX:+PrintGCTimeStamps<br>-XX:+PrintGCDetails<br>-XX:PrintCMSStatistics=1<br>-XX:CMSScheduleRemarkEdenPenetration=50<br>-XX:CMSScheduleRemarkEdenSizeThreshold=2m<br>-XX:CMSMaxAbortablePrecleanTime=5000<br>-XX:+UseCMSInitiatingOccupancyOnly<br>-XX:CMSInitiatingOccupancyFraction=50</p>
+</blockquote>
+<p>运行程序，查看gc日志:在时间0.303，concurrent-preclean开始，重新扫描了5个card,在0.304时，开始abortable-preclean-start，多个线程又进行了一次迭代，扫描dirty card,在5秒后，5.324时，因为达到最大运行时间主动退出，开始remark阶段。</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br><span class="line">11</span><br><span class="line">12</span><br><span class="line">13</span><br><span class="line">14</span><br><span class="line">15</span><br><span class="line">16</span><br><span class="line">17</span><br><span class="line">18</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">0.303</span>: [CMS-concurrent-mark: <span class="number">0.010</span>/<span class="number">0.010</span> secs] (CMS-concurrent-mark yielded <span class="number">0</span> times)</span><br><span class="line"> [Times: user=<span class="number">0.02</span> sys=<span class="number">0.00</span>, real=<span class="number">0.01</span> secs] </span><br><span class="line"><span class="number">0.303</span>: [CMS-concurrent-preclean-start]</span><br><span class="line"> (cardTable: <span class="number">5</span> cards, re-scanned <span class="number">5</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"><span class="number">0.304</span>: [CMS-concurrent-preclean: <span class="number">0.000</span>/<span class="number">0.000</span> secs] (CMS-concurrent-preclean yielded <span class="number">0</span> times)</span><br><span class="line"> [Times: user=<span class="number">0.00</span> sys=<span class="number">0.00</span>, real=<span class="number">0.00</span> secs] </span><br><span class="line"><span class="number">0.304</span>: [CMS-concurrent-abortable-preclean-start]</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> (cardTable: <span class="number">0</span> cards, re-scanned <span class="number">0</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"> <span class="comment">//有省略</span></span><br><span class="line"> CMS: abort preclean due to time  [<span class="number">50</span> iterations, <span class="number">49</span> waits, <span class="number">0</span> cards)] <span class="number">5.324</span>: [CMS-concurrent-abortable-preclean: <span class="number">0.012</span>/<span class="number">5.020</span> secs] (CMS-concurrent-abortable-preclean yielded <span class="number">0</span> times)</span><br><span class="line"> [Times: user=<span class="number">0.02</span> sys=<span class="number">0.00</span>, real=<span class="number">5.02</span> secs] </span><br><span class="line"><span class="number">5.324</span>: [GC (CMS Final Remark) [YG occupancy: <span class="number">17157</span> K (<span class="number">46080</span> K)]<span class="number">5.324</span>: [Rescan (parallel)  (Survivor:<span class="number">0</span>chunks) Finished young gen rescan work in <span class="number">4</span>th thread: <span class="number">0.000</span> sec</span><br></pre></td></tr></table></figure>
+<p>修改-XX:CMSScheduleRemarkEdenSizeThreshold=50m,和年轻代大小相等，再观察gc日志，不会出现concurrent-abortable-preclean阶段：</p>
+<figure class="highlight java"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br></pre></td><td class="code"><pre><span class="line"><span class="number">2.296</span>: [CMS-concurrent-mark: <span class="number">0.010</span>/<span class="number">0.010</span> secs] (CMS-concurrent-mark yielded <span class="number">0</span> times)</span><br><span class="line"> [Times: user=<span class="number">0.02</span> sys=<span class="number">0.00</span>, real=<span class="number">0.01</span> secs] </span><br><span class="line"><span class="number">2.296</span>: [CMS-concurrent-preclean-start]</span><br><span class="line"> (cardTable: <span class="number">1</span> cards, re-scanned <span class="number">1</span> cards, <span class="number">1</span> iterations)</span><br><span class="line"><span class="number">2.296</span>: [CMS-concurrent-preclean: <span class="number">0.000</span>/<span class="number">0.000</span> secs] (CMS-concurrent-preclean yielded <span class="number">0</span> times)</span><br><span class="line"> [Times: user=<span class="number">0.00</span> sys=<span class="number">0.00</span>, real=<span class="number">0.00</span> secs] </span><br><span class="line"><span class="number">2.296</span>: [GC (CMS Final Remark) [YG occupancy: <span class="number">17157</span> K (<span class="number">46080</span> K)]<span class="number">2.296</span>: [Rescan (parallel)  (Survivor:<span class="number">0</span>chunks) Finished young gen rescan work in <span class="number">4</span>th thread: <span class="number">0.000</span> sec</span><br></pre></td></tr></table></figure>
+<h2 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h2><p>跨代引用和card marking:<br><img src="/2020/06/21/理解CMS回收器的preclean阶段/summary.png" title="image"></p>
+<p>preclean: 清理card marking标记的dirty card，更新引用记录</p>
+<p>abortable-preclean: 调节final-remark阶段的运行时机</p>
+<p>参考文章：</p>
+<p>Brian Goetz的文章: <a href="https://www.ibm.com/developerworks/library/j-jtp11253/index.html" target="_blank" rel="noopener">https://www.ibm.com/developerworks/library/j-jtp11253/index.html</a><br>card mark介绍: <a href="http://psy-lob-saw.blogspot.com/2014/10/the-jvm-write-barrier-card-marking.html" target="_blank" rel="noopener">http://psy-lob-saw.blogspot.com/2014/10/the-jvm-write-barrier-card-marking.html</a><br>理解preclean: <a href="https://stackoverflow.com/questions/44182733/can-someone-explain-what-happens-in-the-concurrent-abortable-preclean-phase-of" target="_blank" rel="noopener">https://stackoverflow.com/questions/44182733/can-someone-explain-what-happens-in-the-concurrent-abortable-preclean-phase-of</a><br>jvm源码： <a href="https://github.com/JetBrains/jdk8u_hotspot" target="_blank" rel="noopener">https://github.com/JetBrains/jdk8u_hotspot</a></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/05/27/为什么别人能把java-gc讲清楚/" rel="next" title="为什么别人能把java gc讲清楚">
+                <i class="fa fa-chevron-left"></i> 为什么别人能把java gc讲清楚
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2020/08/19/bloomfilter01/" rel="prev" title="bloomfilter">
+                bloomfilter <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">25</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">29</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-2"><a class="nav-link" href="#concurrent-preclean"><span class="nav-number">1.</span> <span class="nav-text">concurrent-preclean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#分代的理想状态"><span class="nav-number">1.1.</span> <span class="nav-text">分代的理想状态</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#Card-Marking"><span class="nav-number">1.2.</span> <span class="nav-text">Card Marking</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#preclean做了什么"><span class="nav-number">1.3.</span> <span class="nav-text">preclean做了什么</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#concurrent-abortable-preclean"><span class="nav-number">2.</span> <span class="nav-text">concurrent-abortable-preclean</span></a><ol class="nav-child"><li class="nav-item nav-level-3"><a class="nav-link" href="#连续STW"><span class="nav-number">2.1.</span> <span class="nav-text">连续STW</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#配置参数"><span class="nav-number">2.2.</span> <span class="nav-text">配置参数</span></a></li></ol></li><li class="nav-item nav-level-2"><a class="nav-link" href="#实践验证"><span class="nav-number">3.</span> <span class="nav-text">实践验证</span></a></li><li class="nav-item nav-level-2"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"><a target="_blank" rel="external nofollow" href="http://www.miitbeian.gov.cn/"> 京ICP备19018367号 </a> &copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+
+
+
+
+
+
+  <div class="footer-custom"><a target="_blank" rel="external nofollow" href="https://cloud.tencent.com/product/tcb?from=12334"><b>Powered By 云开发</b></a><img src="/images/tencent.png" href="https://cloud.tencent.com/product/tcb?from=12334" style="max-width:10%;margin:0;"></div>
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>

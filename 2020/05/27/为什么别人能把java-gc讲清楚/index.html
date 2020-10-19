@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+
+
+
+
+
+
+
+
+
+
+
+
+  
+
+
+<html class="theme-next mist use-motion" lang="zh-CN">
+<head><meta name="generator" content="Hexo 3.8.0">
+  <meta charset="UTF-8">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2">
+<meta name="theme-color" content="#222">
+
+
+
+
+
+
+
+
+
+
+
+
+<meta http-equiv="Cache-Control" content="no-transform">
+<meta http-equiv="Cache-Control" content="no-siteapp">
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<link href="/lib/font-awesome/css/font-awesome.min.css?v=4.6.2" rel="stylesheet" type="text/css">
+
+<link href="/css/main.css?v=6.5.0" rel="stylesheet" type="text/css">
+
+
+  <link rel="apple-touch-icon" sizes="180x180" href="/images/apple-touch-icon-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="32x32" href="/images/favicon-32x32-next.png?v=6.5.0">
+
+
+  <link rel="icon" type="image/png" sizes="16x16" href="/images/favicon-16x16-next.png?v=6.5.0">
+
+
+  <link rel="mask-icon" href="/images/logo.svg?v=6.5.0" color="#222">
+
+
+
+
+
+
+
+
+
+<script type="text/javascript" id="hexo.configurations">
+  var NexT = window.NexT || {};
+  var CONFIG = {
+    root: '/',
+    scheme: 'Mist',
+    version: '6.5.0',
+    sidebar: {"position":"left","display":"post","offset":12,"b2t":false,"scrollpercent":false,"onmobile":false},
+    fancybox: false,
+    fastclick: false,
+    lazyload: false,
+    tabs: true,
+    motion: {"enable":true,"async":false,"transition":{"post_block":"fadeIn","post_header":"slideDownIn","post_body":"slideDownIn","coll_header":"slideLeftIn","sidebar":"slideUpIn"}},
+    algolia: {
+      applicationID: '',
+      apiKey: '',
+      indexName: '',
+      hits: {"per_page":10},
+      labels: {"input_placeholder":"Search for Posts","hits_empty":"We didn't find any results for the search: ${query}","hits_stats":"${hits} results found in ${time} ms"}
+    }
+  };
+</script>
+
+
+  
+
+
+
+
+  <meta name="description" content="你关于JavaGC的知识都是从哪儿学习的呢?是看博客或者看书还是看oracle的文档?今天来推荐 Plumbr.io上的一个文章(Plumbr是一家提供jvm监控和优化方案的公司),标题叫《Java Garbage Collection handbook》整个文章大概有75页,包括GC概念介绍/算法介绍/算法实现/gc调优等7个小节,这里只引用其中几个段落,来看一下作者是怎么介绍JavaGC知识的">
+<meta name="keywords" content="java基础">
+<meta property="og:type" content="article">
+<meta property="og:title" content="为什么别人能把java gc讲清楚">
+<meta property="og:url" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/index.html">
+<meta property="og:site_name" content="throwsnew">
+<meta property="og:description" content="你关于JavaGC的知识都是从哪儿学习的呢?是看博客或者看书还是看oracle的文档?今天来推荐 Plumbr.io上的一个文章(Plumbr是一家提供jvm监控和优化方案的公司),标题叫《Java Garbage Collection handbook》整个文章大概有75页,包括GC概念介绍/算法介绍/算法实现/gc调优等7个小节,这里只引用其中几个段落,来看一下作者是怎么介绍JavaGC知识的">
+<meta property="og:locale" content="zh-CN">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/1.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/2.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/3.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/4.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/5.png">
+<meta property="og:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/6.png">
+<meta property="og:image" content="http://www.throwsnew.com/images/nb.jpeg">
+<meta property="og:updated_time" content="2020-06-21T05:10:37.564Z">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="为什么别人能把java gc讲清楚">
+<meta name="twitter:description" content="你关于JavaGC的知识都是从哪儿学习的呢?是看博客或者看书还是看oracle的文档?今天来推荐 Plumbr.io上的一个文章(Plumbr是一家提供jvm监控和优化方案的公司),标题叫《Java Garbage Collection handbook》整个文章大概有75页,包括GC概念介绍/算法介绍/算法实现/gc调优等7个小节,这里只引用其中几个段落,来看一下作者是怎么介绍JavaGC知识的">
+<meta name="twitter:image" content="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/1.png">
+
+
+
+
+
+
+  <link rel="canonical" href="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/">
+
+
+
+<script type="text/javascript" id="page.configurations">
+  CONFIG.page = {
+    sidebar: "",
+  };
+</script>
+
+  <title>为什么别人能把java gc讲清楚 | throwsnew</title>
+  
+
+
+
+
+
+
+  <script type="text/javascript">
+    var _hmt = _hmt || [];
+    (function() {
+      var hm = document.createElement("script");
+      hm.src = "https://hm.baidu.com/hm.js?1707f79414590fdb8341512803ca4504";
+      var s = document.getElementsByTagName("script")[0];
+      s.parentNode.insertBefore(hm, s);
+    })();
+  </script>
+
+
+
+
+
+
+  <noscript>
+  <style type="text/css">
+    .use-motion .motion-element,
+    .use-motion .brand,
+    .use-motion .menu-item,
+    .sidebar-inner,
+    .use-motion .post-block,
+    .use-motion .pagination,
+    .use-motion .comments,
+    .use-motion .post-header,
+    .use-motion .post-body,
+    .use-motion .collection-title { opacity: initial; }
+
+    .use-motion .logo,
+    .use-motion .site-title,
+    .use-motion .site-subtitle {
+      opacity: initial;
+      top: initial;
+    }
+
+    .use-motion {
+      .logo-line-before i { left: initial; }
+      .logo-line-after i { right: initial; }
+    }
+  </style>
+</noscript>
+
+</head>
+
+<body itemscope="" itemtype="http://schema.org/WebPage" lang="zh-CN">
+
+  
+  
+    
+  
+
+  <div class="container sidebar-position-left page-post-detail">
+    <div class="headband"></div>
+
+    <header id="header" class="header" itemscope="" itemtype="http://schema.org/WPHeader">
+      <div class="header-inner"><div class="site-brand-wrapper">
+  <div class="site-meta ">
+    
+
+    <div class="custom-logo-site-title">
+      <a href="/" class="brand" rel="start">
+        <span class="logo-line-before"><i></i></span>
+        <span class="site-title">throwsnew</span>
+        <span class="logo-line-after"><i></i></span>
+      </a>
+    </div>
+    
+  </div>
+
+  <div class="site-nav-toggle">
+    <button aria-label="切换导航栏">
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+      <span class="btn-bar"></span>
+    </button>
+  </div>
+</div>
+
+
+
+<nav class="site-nav">
+  
+    <ul id="menu" class="menu">
+      
+        
+        
+        
+          
+          <li class="menu-item menu-item-home">
+    <a href="/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-home"></i> <br>首页</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-tags">
+    <a href="/tags/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-tags"></i> <br>标签</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-categories">
+    <a href="/categories/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-th"></i> <br>专题</a>
+  </li>
+        
+        
+        
+          
+          <li class="menu-item menu-item-archives">
+    <a href="/archives/" rel="section">
+      <i class="menu-item-icon fa fa-fw fa-archive"></i> <br>归档</a>
+  </li>
+
+      
+      
+    </ul>
+  
+
+  
+    
+
+  
+
+  
+</nav>
+
+
+
+  
+
+
+
+</div>
+    </header>
+
+    
+
+
+    <main id="main" class="main">
+      <div class="main-inner">
+        <div class="content-wrap">
+          
+          <div id="content" class="content">
+            
+
+  <div id="posts" class="posts-expand">
+    
+
+  
+
+  
+  
+  
+
+  
+
+  <article class="post post-type-normal" itemscope="" itemtype="http://schema.org/Article">
+  
+  
+  
+  <div class="post-block">
+    <link itemprop="mainEntityOfPage" href="http://www.throwsnew.com/2020/05/27/为什么别人能把java-gc讲清楚/">
+
+    <span hidden itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+      <meta itemprop="name" content="Xianfeng Song">
+      <meta itemprop="description" content="a blog learn share practice">
+      <meta itemprop="image" content="/images/logoNew.gif">
+    </span>
+
+    <span hidden itemprop="publisher" itemscope="" itemtype="http://schema.org/Organization">
+      <meta itemprop="name" content="throwsnew">
+    </span>
+
+    
+      <header class="post-header">
+
+        
+        
+          <h2 class="post-title" itemprop="name headline">为什么别人能把java gc讲清楚
+              
+            
+          </h2>
+        
+
+        <div class="post-meta">
+          <span class="post-time">
+
+            
+            
+            
+
+            
+              <span class="post-meta-item-icon">
+                <i class="fa fa-calendar-o"></i>
+              </span>
+              
+                <span class="post-meta-item-text">发表于</span>
+              
+
+              
+                
+              
+
+              <time title="创建时间：2020-05-27 02:13:10" itemprop="dateCreated datePublished" datetime="2020-05-27T02:13:10+08:00">2020-05-27</time>
+            
+
+            
+              
+
+              
+                
+                <span class="post-meta-divider">|</span>
+                
+
+                <span class="post-meta-item-icon">
+                  <i class="fa fa-calendar-check-o"></i>
+                </span>
+                
+                  <span class="post-meta-item-text">更新于</span>
+                
+                <time title="修改时间：2020-06-21 13:10:37" itemprop="dateModified" datetime="2020-06-21T13:10:37+08:00">2020-06-21</time>
+              
+            
+          </span>
+
+          
+
+          
+            
+          
+
+          
+          
+
+          
+
+          
+
+          
+
+        </div>
+      </header>
+    
+
+    
+    
+    
+    <div class="post-body" itemprop="articleBody">
+
+      
+      
+
+      
+        <p>你关于JavaGC的知识都是从哪儿学习的呢?是看博客或者看书还是看oracle的文档?今天来推荐 <a href="https://plumbr.io/java-garbage-collection-handbook" target="_blank" rel="noopener">Plumbr.io</a>上的一个文章(Plumbr是一家提供jvm监控和优化方案的公司),标题叫《Java Garbage Collection handbook》整个文章大概有75页,包括GC概念介绍/算法介绍/算法实现/gc调优等7个小节,这里只引用其中几个段落,来看一下作者是怎么介绍JavaGC知识的.</p>
+<a id="more"></a>
+<h3 id="形象地概括-Garbage-Collection"><a href="#形象地概括-Garbage-Collection" class="headerlink" title="形象地概括 Garbage Collection"></a>形象地概括 Garbage Collection</h3><p>在<a href="https://www.zhihu.com/question/20576786/answer/17338936" target="_blank" rel="noopener">费曼学习法</a>中有这样一个逻辑:如果你不能把一个概念简化到让一个小孩子都能理解,那么说明你还没有掌握它. 在plumbr.io的文档第一节,作者形象地把gc和生活中的清理垃圾做对比: 打扫垃圾时我们会把垃圾挑出来然后扔掉, 而gc的过程是把需要保留的内存对象挑出来, 然后清理剩下的部分. <strong>在文章开始先给出通俗又准确的定义,让别人对核心概念有一个认识</strong>.</p>
+<blockquote>
+<p>At first sight, garbage collection should be dealing with what the name suggests – finding and throwing away the garbage. In reality it is doing exactly the opposite. Garbage Collection is tracking down all the objects that are still used and marks the rest as garbage.</p>
+</blockquote>
+<h3 id="先说为什么"><a href="#先说为什么" class="headerlink" title="先说为什么"></a>先说为什么</h3><p>我们都知道jvm内存模型中堆内存是分代的,<strong>那么为什么分代呢?又为什么要分成新生代和老年代呢?</strong></p>
+<p>在文章中,作者先介绍分代的原因:<br>首先每次GC处理的对象越少,那么STW暂停的时间越短,所以把对象分为几个部分(分代也是一种分治的思想)</p>
+<blockquote>
+<p>As we have mentioned before, doing a garbage collection entails stopping the application completely. It is also quite obvious that the more objects there are the longer it takes to collect all the garbage.But what if we would have a possibility to work with smaller memory regions? </p>
+</blockquote>
+<p>而分为young/old两部分,是因为根据研究人员通过对Java程序中的对象的观察得出的分代假设(Weak Generational Hypothesis),根据存活时间的不同,对象自然分为两个部分:<br><img src="/2020/05/27/为什么别人能把java-gc讲清楚/1.png" title="image"></p>
+<p>介绍JVM堆内存组成前,作者先介绍了Weak Generational Hypothesis,<strong>先说为什么再说是什么</strong>,可以让人更容易理解. 比如,在了解对象分代假设之后,因为通常对象只要活过一段时间后(中间的谷底),大多数都能活很久(右边),所以在young generational中添加了survivor区域,并且存活的对象要在两个survivor区域间复制几次才会进入老年代.</p>
+<blockquote>
+<p>This process of copying the live objects between the two Survivor spaces is repeated several times until some objects are considered to have matured and are ‘old enough’. Remember that, based on the generational hypothesis, objects which have survived for some time are expected to continue to be used for very long time.</p>
+</blockquote>
+<img src="/2020/05/27/为什么别人能把java-gc讲清楚/2.png" title="image">
+<h3 id="使用图片描述细节"><a href="#使用图片描述细节" class="headerlink" title="使用图片描述细节"></a>使用图片描述细节</h3><p>cms回收器的工作流程步骤比较多(有些书简化成了4步,明显和GC日志的输出对应不上),plumbr的在介绍cms回收器时使用一些精致的图片,来描述gc时内存中对象的变化.<br>在Initial Mark阶段,图片上特别画出了跨代引用的对象,因为这个阶段只标记gc root直接引用的对象,所有有三个绿色obj.<br><img src="/2020/05/27/为什么别人能把java-gc讲清楚/3.png" title="image"><br>而在concurrent mark阶段,又因为cms回收器会遍历对象,图中把间接引用的对象标记绿色.<br><img src="/2020/05/27/为什么别人能把java-gc讲清楚/4.png" title="image"><br>画的最好的是preclean阶段,图中标记出了跨代引用更新之后,因为<a href="http://psy-lob-saw.blogspot.com/2014/10/the-jvm-write-barrier-card-marking.html" target="_blank" rel="noopener">card marking机制</a>被标记为dirty的card被clean的过程(红色的card被更新,看了这个两个图,我才理解preclean的过程和card marking的作用)<br><img src="/2020/05/27/为什么别人能把java-gc讲清楚/5.png" title="image"><br><img src="/2020/05/27/为什么别人能把java-gc讲清楚/6.png" title="image"></p>
+<h3 id="总结"><a href="#总结" class="headerlink" title="总结"></a>总结</h3><p>最容易骗你的就是你自己,所以有时候你感觉自己懂了并不能说明你懂了,如果你能让别人也懂那你大概是真的懂,而让别人懂还需要有讲述问题的技巧才行.用一张图来总结plumbr的文章<br><img src="/images/nb.jpeg" alt="nb"></p>
+<p><strong><em>想看《Java Garbage Collection handbook》完整版的朋友,在公众号后台回复”gc”即可</em></strong></p>
+
+      
+    </div>
+
+    
+      
+
+
+    
+
+    
+    
+    
+
+    
+      <div>
+        <div id="wechat_subscriber" style="display: block; padding: 10px 0; margin: 20px auto; width: 100%; text-align: center">
+    <img id="wechat_subscriber_qcode" src="/images/qrcode.jpg" alt="Xianfeng Song wechat" style="width: 200px; max-width: 100%;">
+    <div>关注公众号，第一时间更新</div>
+</div>
+
+      </div>
+    
+
+    
+
+    
+
+    <footer class="post-footer">
+      
+        <div class="post-tags">
+          
+            <a href="/tags/java基础/" rel="tag"># java基础</a>
+          
+        </div>
+      
+
+      
+      
+      
+
+      
+        <div class="post-nav">
+          <div class="post-nav-next post-nav-item">
+            
+              <a href="/2020/05/21/用机器学习判断ins内容是否能上热门/" rel="next" title="用机器学习判断ins内容是否能上热门">
+                <i class="fa fa-chevron-left"></i> 用机器学习判断ins内容是否能上热门
+              </a>
+            
+          </div>
+
+          <span class="post-nav-divider"></span>
+
+          <div class="post-nav-prev post-nav-item">
+            
+              <a href="/2020/06/21/理解CMS回收器的preclean阶段/" rel="prev" title="理解CMS回收器的preclean阶段">
+                理解CMS回收器的preclean阶段 <i class="fa fa-chevron-right"></i>
+              </a>
+            
+          </div>
+        </div>
+      
+
+      
+      
+    </footer>
+  </div>
+  
+  
+  
+  </article>
+
+
+  </div>
+
+
+          </div>
+          
+
+  
+
+
+
+        </div>
+        
+          
+  
+  <div class="sidebar-toggle">
+    <div class="sidebar-toggle-line-wrap">
+      <span class="sidebar-toggle-line sidebar-toggle-line-first"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-middle"></span>
+      <span class="sidebar-toggle-line sidebar-toggle-line-last"></span>
+    </div>
+  </div>
+
+  <aside id="sidebar" class="sidebar">
+    
+    <div class="sidebar-inner">
+
+      
+
+      
+        <ul class="sidebar-nav motion-element">
+          <li class="sidebar-nav-toc sidebar-nav-active" data-target="post-toc-wrap">
+            文章目录
+          </li>
+          <li class="sidebar-nav-overview" data-target="site-overview-wrap">
+            站点概览
+          </li>
+        </ul>
+      
+
+      <section class="site-overview-wrap sidebar-panel">
+        <div class="site-overview">
+          <div class="site-author motion-element" itemprop="author" itemscope="" itemtype="http://schema.org/Person">
+            
+              <img class="site-author-image" itemprop="image" src="/images/logoNew.gif" alt="Xianfeng Song">
+            
+              <p class="site-author-name" itemprop="name">Xianfeng Song</p>
+              <p class="site-description motion-element" itemprop="description">a blog learn share practice</p>
+          </div>
+
+          
+            <nav class="site-state motion-element">
+              
+                <div class="site-state-item site-state-posts">
+                
+                  <a href="/archives/">
+                
+                    <span class="site-state-item-count">25</span>
+                    <span class="site-state-item-name">日志</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-categories">
+                  <a href="/categories/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">7</span>
+                    <span class="site-state-item-name">分类</span>
+                  </a>
+                </div>
+              
+
+              
+                
+                
+                <div class="site-state-item site-state-tags">
+                  <a href="/tags/index.html">
+                    
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                      
+                    
+                    <span class="site-state-item-count">29</span>
+                    <span class="site-state-item-name">标签</span>
+                  </a>
+                </div>
+              
+            </nav>
+          
+
+          
+
+          
+            <div class="links-of-author motion-element">
+              
+                <span class="links-of-author-item">
+                  <a href="https://github.com/xianfengsong" target="_blank" title="GitHub" rel="external nofollow"><i class="fa fa-fw fa-github"></i>GitHub</a>
+                  
+                </span>
+              
+            </div>
+          
+
+          
+          
+
+          
+          
+
+          
+            
+          
+          
+
+        </div>
+      </section>
+
+      
+      <!--noindex-->
+        <section class="post-toc-wrap motion-element sidebar-panel sidebar-panel-active">
+          <div class="post-toc">
+
+            
+              
+            
+
+            
+              <div class="post-toc-content"><ol class="nav"><li class="nav-item nav-level-3"><a class="nav-link" href="#形象地概括-Garbage-Collection"><span class="nav-number">1.</span> <span class="nav-text">形象地概括 Garbage Collection</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#先说为什么"><span class="nav-number">2.</span> <span class="nav-text">先说为什么</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#使用图片描述细节"><span class="nav-number">3.</span> <span class="nav-text">使用图片描述细节</span></a></li><li class="nav-item nav-level-3"><a class="nav-link" href="#总结"><span class="nav-number">4.</span> <span class="nav-text">总结</span></a></li></ol></div>
+            
+
+          </div>
+        </section>
+      <!--/noindex-->
+      
+
+      
+
+    </div>
+  </aside>
+
+
+        
+      </div>
+    </main>
+
+    <footer id="footer" class="footer">
+      <div class="footer-inner">
+        <div class="copyright"><a target="_blank" rel="external nofollow" href="http://www.miitbeian.gov.cn/"> 京ICP备19018367号 </a> &copy; <span itemprop="copyrightYear">2020</span>
+  <span class="with-love" id="animate">
+    <i class="fa fa-user"></i>
+  </span>
+  <span class="author" itemprop="copyrightHolder">Xianfeng Song</span>
+
+  
+
+  
+</div>
+
+
+  
+
+
+
+
+
+
+
+
+
+  <div class="footer-custom"><a target="_blank" rel="external nofollow" href="https://cloud.tencent.com/product/tcb?from=12334"><b>Powered By 云开发</b></a><img src="/images/tencent.png" href="https://cloud.tencent.com/product/tcb?from=12334" style="max-width:10%;margin:0;"></div>
+
+
+        
+
+
+
+
+
+
+
+
+        
+      </div>
+    </footer>
+
+    
+      <div class="back-to-top">
+        <i class="fa fa-arrow-up"></i>
+        
+      </div>
+    
+
+    
+	
+    
+
+    
+  </div>
+
+  
+
+<script type="text/javascript">
+  if (Object.prototype.toString.call(window.Promise) !== '[object Function]') {
+    window.Promise = null;
+  }
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+    
+      
+  
+  <script type="text/javascript" color="0,0,255" opacity="0.5" zindex="-1" count="99" src="/lib/canvas-nest/canvas-nest-nomobile.min.js"></script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+  
+  
+    <script type="text/javascript" src="/lib/jquery/index.js?v=2.1.3"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.min.js?v=1.2.1"></script>
+  
+
+  
+  
+    <script type="text/javascript" src="/lib/velocity/velocity.ui.min.js?v=1.2.1"></script>
+  
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/utils.js?v=6.5.0"></script>
+
+  <script type="text/javascript" src="/js/src/motion.js?v=6.5.0"></script>
+
+
+
+  
+  
+
+  
+  <script type="text/javascript" src="/js/src/scrollspy.js?v=6.5.0"></script>
+<script type="text/javascript" src="/js/src/post-details.js?v=6.5.0"></script>
+
+
+
+  
+
+
+  <script type="text/javascript" src="/js/src/bootstrap.js?v=6.5.0"></script>
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+  
+
+  
+
+  
+
+  
+
+  
+
+  
+
+</body>
+</html>
